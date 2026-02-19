@@ -102,7 +102,7 @@ export default function AdminSidebar() {
             <User className="h-6 w-6 text-muted-foreground" strokeWidth={1.2} />
           </div>
           <div>
-            <div className="text-sm font-medium">Narae Won</div>
+            <div className="text-sm font-medium">Artist Name</div>
             <div className="text-xs text-muted-foreground">관리자</div>
           </div>
         </div>
@@ -143,7 +143,7 @@ export default function AdminSidebar() {
 
       {/* Mobile Header */}
       <header className="fixed left-0 right-0 top-0 z-40 flex md:hidden items-center justify-between md:justify-between border-b border-border bg-white px-4 py-3">
-        <h1 className="text-sm font-medium">Narae Won | 관리자 페이지</h1>
+        <h1 className="text-sm font-medium">Artist Name | Admin Page</h1>
         <Button
           variant="default"
           size="icon"
@@ -172,7 +172,7 @@ export default function AdminSidebar() {
                   />
                 </div>
                 <div>
-                  <div className="text-sm font-medium">Narae Won</div>
+                  <div className="text-sm font-medium">Artist Name</div>
                   <div className="text-xs text-muted-foreground">관리자</div>
                 </div>
               </div>

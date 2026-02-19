@@ -84,19 +84,19 @@ export default async function Bio() {
       <div className="flex md:flex-row flex-col w-full">
         <div className="md:flex-1">
           <div className="text-[14px] font-medium mb-2 mt-2 md:mt-0">
-            원나래 | Narae Won
+            Artist Name
           </div>
           <div className="text-sm/4 font-light">1991 출생</div>
           <div className="text-sm/4 font-light">born in 1991</div>
           <Link
-            href="https://www.instagram.com/naraeworks/"
+            href="https://www.instagram.com/instagram_handle/"
             target="_blank"
             rel="noopener noreferrer"
             className="mt-3 inline-flex items-center gap-1 text-xs text-black hover:text-red-500 transition-colors"
             aria-label="Visit Instagram profile"
           >
             <Instagram className="h-4 w-4" strokeWidth={1} />
-            <span>@naraeworks</span>
+            <span>@instagram_handle</span>
           </Link>
         </div>
         <div className="mt-12 md:mt-0 md:flex-5 xl:flex-4  flex flex-col gap-16 md:gap-24">

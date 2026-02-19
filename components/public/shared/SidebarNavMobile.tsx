@@ -84,7 +84,7 @@ export default function SidebarNavMobile({
           href="/"
           onClick={closeMobileNav}
         >
-          NARAE WON
+          Artist Name
         </Link>
 
         <Button
@@ -110,7 +110,7 @@ export default function SidebarNavMobile({
         >
           {/* Overlay Header */}
           <div className="flex items-start justify-between pl-6 pt-8 pb-6 shrink-0">
-            <div className="text-base font-medium">NARAE WON</div>
+            <div className="text-base font-medium">Artist Name</div>
             <Button
               variant="default"
               size="icon"

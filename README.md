@@ -1,4 +1,4 @@
-# Artist Portfolio
+# Artist Portfolio Template
 
 Portfolio website with a single-admin CMS built on Next.js + Supabase.
 

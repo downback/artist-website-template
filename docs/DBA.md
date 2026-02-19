@@ -1,6 +1,6 @@
 # DBA Product Requirements (Current Baseline)
 
-**Project:** Narae Won Portfolio Website  
+**Project:** Artist Portfolio Website  
 **Audience:** DBA / Backend Engineering  
 **Role Scope:** Schema design, RLS/policies, storage structure, integrity operations  
 **Out of Scope:** UI/UX and frontend component implementation
@@ -244,12 +244,12 @@ Operationally, mutation routes should:
 
 ## Final Summary
 
-| Area            | Decision                                        |
-| --------------- | ----------------------------------------------- |
-| Auth model      | Single admin via `app_admin`                    |
-| Works           | `artworks` table (`category='works'`)           |
-| Exhibitions     | Split metadata/images tables                    |
-| CV              | 6 ordered bilingual `bio_*` tables              |
-| Text            | `texts` with title/year/body                    |
-| Storage         | `site-assets` + semantic folder prefixes        |
-| Audit           | `activity_log` append-only insert/read for admin |
+| Area        | Decision                                         |
+| ----------- | ------------------------------------------------ |
+| Auth model  | Single admin via `app_admin`                     |
+| Works       | `artworks` table (`category='works'`)            |
+| Exhibitions | Split metadata/images tables                     |
+| CV          | 6 ordered bilingual `bio_*` tables               |
+| Text        | `texts` with title/year/body                     |
+| Storage     | `site-assets` + semantic folder prefixes         |
+| Audit       | `activity_log` append-only insert/read for admin |

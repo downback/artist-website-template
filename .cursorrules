@@ -2,7 +2,7 @@
 
 [PROJECT]
 
-- This project is **Narae Won Portfolio Website + Admin CMS**.
+- This project is **Artist Portfolio Website + Admin CMS**.
 - Scope is an image/text portfolio with public pages for `works`, `exhibitions`, `texts`, and `cv`.
 - A **single authenticated admin** manages content via `/admin`.
 - Source of truth is Supabase database + storage.

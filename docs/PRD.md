@@ -1,6 +1,6 @@
 # Product Requirements Document (PRD)
 
-**Project:** Narae Won Portfolio Website + Admin CMS  
+**Project:** Artist Portfolio Website + Admin CMS  
 **Owner:** Product  
 **Stakeholders:** Artist (Client), Developer, Tech Lead, Designer, DBA  
 **Status:** Active implementation baseline
