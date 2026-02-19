@@ -1,0 +1,103 @@
+# .cursorrules (PRD-aligned for current project)
+
+[PROJECT]
+
+- This project is **Narae Won Portfolio Website + Admin CMS**.
+- Scope is an image/text portfolio with public pages for `works`, `exhibitions`, `texts`, and `cv`.
+- A **single authenticated admin** manages content via `/admin`.
+- Source of truth is Supabase database + storage.
+
+[PRODUCT SCOPE]
+
+- Keep current workflow stable: content CRUD and reorder only.
+- Preserve bilingual CV fields (`description`, `description_kr`) across six CV sections.
+- Prioritize reliability and maintainability over feature breadth.
+- Do not introduce behavior outside PRD without explicit request.
+
+[NON-GOALS]
+
+- No hero media management.
+- No works PDF management.
+- No contact-form CMS.
+- No role hierarchy beyond one admin.
+- No drafts, approvals, or version history.
+
+[TECH STACK]
+
+- Next.js App Router.
+- TypeScript for all app code.
+- TailwindCSS + ShadCN UI for UI primitives.
+- Supabase for Auth, DB, and Storage.
+
+[ARCHITECTURE BOUNDARIES]
+
+- `app/(public)` = public read experience.
+- `app/admin` = admin UI.
+- `app/api/admin` = admin mutation routes.
+- `lib/server` = server-side helpers for auth, validation, storage transactions, and mutation flows.
+- Keep responsibilities clear; avoid mixing client UI logic into server helper files.
+
+[CURRENT ROUTE MODEL]
+
+- Public pages:
+  - `app/(public)/works/[year]/page.tsx`
+  - `app/(public)/exhibitions/solo/[slug]/page.tsx`
+  - `app/(public)/exhibitions/group/[slug]/page.tsx`
+  - `app/(public)/texts/page.tsx`
+  - `app/(public)/cv/page.tsx`
+- Admin pages:
+  - `app/admin/page.tsx`
+  - `app/admin/works/page.tsx`
+  - `app/admin/exhibitions/page.tsx`
+  - `app/admin/text/page.tsx`
+  - `app/admin/cv/page.tsx`
+
+[DATA DOMAINS]
+
+- Admin singleton: `app_admin`
+- Works: `artworks` (`category` fixed to `works`)
+- Exhibitions: `exhibitions`, `exhibition_images`
+- Texts: `texts`
+- CV sections: `bio_solo_exhibitions`, `bio_group_exhibitions`, `bio_education`, `bio_residency`, `bio_awards`, `bio_collections`
+- Audit log: `activity_log`
+- Storage bucket: `site-assets`
+
+[SECURITY RULES]
+
+- Every admin mutation route must validate admin access via shared auth helper (`requireAdminUser` pattern).
+- Validate dynamic IDs and user input server-side.
+- Validate uploads (mime + size) before storage writes.
+- Do not expose internal error details to end users.
+- Keep RLS and API auth assumptions aligned with single-admin model.
+
+[MUTATION SAFETY RULES]
+
+- Use shared request/response helpers for consistent API behavior.
+- Prefer shared validation helpers over route-local ad hoc validation.
+- For multi-step storage/DB mutations, keep rollback behavior intact.
+- Avoid partial-write states; fail safely and return clear error messages.
+
+[ADMIN UX RULES]
+
+- While destructive actions are processing, keep confirm dialogs open and show loading state.
+- Close dialogs only after mutation completion (or explicit failure handling).
+- Keep admin actions low-friction and clear for non-technical editor use.
+
+[CODE STYLE]
+
+- Use descriptive names and early returns.
+- Keep one file/one main responsibility where practical.
+- Reuse shared helpers when there are 2+ concrete consumers.
+- Keep shared hooks/components mechanical; keep domain logic in domain files.
+
+[ACCESSIBILITY]
+
+- All interactive controls must have labels/aria-labels.
+- Ensure keyboard accessibility and visible focus states.
+- Keep image alt text meaningful.
+
+[CHANGE CONTROL]
+
+- Do not add new product features when implementing refactors/fixes.
+- Do not reintroduce removed domains (hero image, works PDF, generic CMS flows).
+- Keep changes incremental, low-risk, and PRD-consistent.
