@@ -339,30 +339,21 @@ export async function DELETE(_: Request, { params }: RouteContext) {
 
       await supabase.storage.from(bucketName).remove([imageRow.storage_path])
 
-      const { error: activityError } = await supabase
-        .from("activity_log")
-        .insert({
-          admin_id: user.id,
-          action_type: "delete",
-          entity_type: "exhibition_image",
-          entity_id: id,
-          metadata: {
-            category:
-              exhibitionRow?.type === "solo"
-                ? "solo-exhibitions"
-                : exhibitionRow?.type === "group"
-                  ? "group-exhibitions"
-                  : "exhibitions",
-          },
-        })
-
-      if (activityError) {
-        console.warn("Activity log insert failed", {
-          message: activityError.message,
-          details: activityError.details,
-          hint: activityError.hint,
-        })
-      }
+      await insertActivityLog(supabase, {
+        adminId: user.id,
+        actionType: "delete",
+        entityType: "exhibition_image",
+        entityId: id,
+        metadata: {
+          category:
+            exhibitionRow?.type === "solo"
+              ? "solo-exhibitions"
+              : exhibitionRow?.type === "group"
+                ? "group-exhibitions"
+                : "exhibitions",
+        },
+        logContext: "Exhibition image delete",
+      })
 
       return NextResponse.json({ ok: true })
     }

@@ -114,11 +114,9 @@ export async function POST(request: Request) {
     const { data: artwork, error: artworkError } = await supabase
       .from("artworks")
       .insert({
-        storage_path: storagePath,
         category: "works",
         year,
         title: normalizedTitle,
-        caption: normalizedCaption,
         display_order: nextDisplayOrder,
       })
       .select("id, created_at")
@@ -134,6 +132,31 @@ export async function POST(request: Request) {
       return createMappedSupabaseErrorResponse({
         message: artworkError?.message || "",
         tableHint: "artworks",
+        fallbackMessage: "Unable to save work entry.",
+      })
+    }
+
+    const { error: artworkImageError } = await supabase
+      .from("artwork_images")
+      .insert({
+        artwork_id: artwork.id,
+        storage_path: storagePath,
+        caption: normalizedCaption,
+        display_order: 0,
+        is_primary: true,
+      })
+
+    if (artworkImageError) {
+      await removeStoragePathsSafely({
+        supabase,
+        bucketName,
+        storagePaths: [storagePath],
+        logContext: "Work create image rollback",
+      })
+      await supabase.from("artworks").delete().eq("id", artwork.id)
+      return createMappedSupabaseErrorResponse({
+        message: artworkImageError.message,
+        tableHint: "artwork_images",
         fallbackMessage: "Unable to save work entry.",
       })
     }

@@ -373,6 +373,186 @@ values (
   'TEST_ADMIN_USER_UUID'
 );
 
-update public.app_admin
-set admin_user_id = 'REAL_ADMIN_USER_UUID'
-where singleton_id = true;
+-- update public.app_admin
+-- set admin_user_id = 'REAL_ADMIN_USER_UUID'
+-- where singleton_id = true;
+
+-- -- 1) Ensure bucket exists
+-- insert into storage.buckets (id, name, public)
+-- values ('site-assets', 'site-assets', true)
+-- on conflict (id) do nothing;
+
+-- -- 2) Public read for this bucket
+-- create policy "site_assets_public_read"
+-- on storage.objects
+-- for select
+-- using (bucket_id = 'site-assets');
+
+-- -- 3) Admin write/update/delete (single admin from app_admin)
+-- create policy "site_assets_admin_insert"
+-- on storage.objects
+-- for insert
+-- with check (
+--   bucket_id = 'site-assets'
+--   and auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true)
+-- );
+
+-- create policy "site_assets_admin_update"
+-- on storage.objects
+-- for update
+-- using (
+--   bucket_id = 'site-assets'
+--   and auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true)
+-- )
+-- with check (
+--   bucket_id = 'site-assets'
+--   and auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true)
+-- );
+
+-- create policy "site_assets_admin_delete"
+-- on storage.objects
+-- for delete
+-- using (
+--   bucket_id = 'site-assets'
+--   and auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true)
+-- );
+
+-- ============================================================
+-- MIGRATION: Split artworks into artworks + artwork_images
+-- Safe refactor for existing database
+-- ============================================================
+
+
+-- ============================================================
+-- 1. Drop trigger temporarily (depends on table structure)
+-- ============================================================
+
+drop trigger if exists artworks_set_updated_at on public.artworks;
+
+
+
+-- ============================================================
+-- 2. Create artwork_images table
+-- ============================================================
+
+create table if not exists public.artwork_images (
+  id uuid primary key default gen_random_uuid(),
+  artwork_id uuid not null
+    references public.artworks(id) on delete cascade,
+  storage_path text not null unique,
+  caption text not null,
+  display_order integer not null default 0 check (display_order >= 0),
+  is_primary boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+
+
+-- ============================================================
+-- 3. Migrate existing image data (if artworks already contain data)
+--    This safely copies old storage_path + caption into new table
+-- ============================================================
+
+insert into public.artwork_images (
+  artwork_id,
+  storage_path,
+  caption,
+  display_order,
+  is_primary
+)
+select
+  id,
+  storage_path,
+  caption,
+  0,
+  true
+from public.artworks
+where storage_path is not null;
+
+
+
+-- ============================================================
+-- 4. Remove image columns from artworks
+-- ============================================================
+
+alter table public.artworks
+  drop column if exists storage_path,
+  drop column if exists caption;
+
+
+
+-- ============================================================
+-- 5. Enable RLS on new table
+-- ============================================================
+
+alter table public.artwork_images enable row level security;
+
+
+
+-- ============================================================
+-- 6. Public read policy
+-- ============================================================
+
+create policy "artwork_images_public_read"
+on public.artwork_images
+for select
+using (true);
+
+
+
+-- ============================================================
+-- 7. Admin write policy (same logic as existing tables)
+-- ============================================================
+
+create policy "artwork_images_admin_write"
+on public.artwork_images
+for all
+using (
+  (select auth.uid()) = (
+    select admin_user_id
+    from public.app_admin
+    where singleton_id = true
+  )
+)
+with check (
+  (select auth.uid()) = (
+    select admin_user_id
+    from public.app_admin
+    where singleton_id = true
+  )
+);
+
+
+
+-- ============================================================
+-- 8. Re-create updated_at trigger on artworks
+-- ============================================================
+
+create trigger artworks_set_updated_at
+  before update on public.artworks
+  for each row execute function public.set_updated_at();
+
+
+
+-- ============================================================
+-- 9. Indexes for artwork_images
+-- ============================================================
+
+-- Fetch all images for one artwork ordered
+create index if not exists idx_artwork_images_artwork_order
+  on public.artwork_images (artwork_id, display_order);
+
+-- Find primary image fast
+create index if not exists idx_artwork_images_primary
+  on public.artwork_images (artwork_id, is_primary);
+
+-- Enforce only ONE primary image per artwork
+create unique index if not exists idx_artwork_images_one_primary
+  on public.artwork_images (artwork_id)
+  where is_primary = true;
+
+
+
+-- ============================================================
+-- END OF MIGRATION
+-- ============================================================

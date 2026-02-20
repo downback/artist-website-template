@@ -66,15 +66,26 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     const { data: artwork, error: artworkError } = await supabase
       .from("artworks")
-      .select("storage_path")
+      .select("id")
       .eq("id", id)
       .maybeSingle()
 
-    if (artworkError || !artwork?.storage_path) {
+    if (artworkError || !artwork?.id) {
       return NextResponse.json({ error: "Work not found." }, { status: 404 })
     }
 
-    let nextStoragePath = artwork.storage_path
+    const { data: primaryImage, error: primaryImageError } = await supabase
+      .from("artwork_images")
+      .select("id, storage_path")
+      .eq("artwork_id", id)
+      .eq("is_primary", true)
+      .maybeSingle()
+
+    if (primaryImageError || !primaryImage?.id || !primaryImage.storage_path) {
+      return NextResponse.json({ error: "Work image not found." }, { status: 404 })
+    }
+
+    let nextStoragePath = primaryImage.storage_path
     if (file instanceof File) {
       const fileValidationError = validateImageUploadFile(file)
       if (fileValidationError) {
@@ -105,18 +116,15 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     const { data: updated, error: updateError } = await supabase
       .from("artworks")
       .update({
-        storage_path: nextStoragePath,
         year,
         title: normalizedTitle,
-        caption: normalizedCaption,
-        updated_at: new Date().toISOString(),
       })
       .eq("id", id)
-      .select("id, created_at, storage_path")
+      .select("id, created_at")
       .single()
 
     if (updateError || !updated) {
-      if (nextStoragePath !== artwork.storage_path) {
+      if (nextStoragePath !== primaryImage.storage_path) {
         await removeStoragePathsSafely({
           supabase,
           bucketName,
@@ -130,11 +138,34 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       )
     }
 
-    if (nextStoragePath !== artwork.storage_path) {
+    const { error: imageUpdateError } = await supabase
+      .from("artwork_images")
+      .update({
+        storage_path: nextStoragePath,
+        caption: normalizedCaption,
+      })
+      .eq("id", primaryImage.id)
+
+    if (imageUpdateError) {
+      if (nextStoragePath !== primaryImage.storage_path) {
+        await removeStoragePathsSafely({
+          supabase,
+          bucketName,
+          storagePaths: [nextStoragePath],
+          logContext: "Work image update rollback",
+        })
+      }
+      return NextResponse.json(
+        { error: imageUpdateError.message || "Unable to update work image." },
+        { status: 500 },
+      )
+    }
+
+    if (nextStoragePath !== primaryImage.storage_path) {
       await removeStoragePathsSafely({
         supabase,
         bucketName,
-        storagePaths: [artwork.storage_path],
+        storagePaths: [primaryImage.storage_path],
         logContext: "Work update old-file cleanup",
       })
     }
@@ -173,13 +204,30 @@ export async function DELETE(_: Request, { params }: RouteContext) {
 
     const { data: artwork, error: artworkError } = await supabase
       .from("artworks")
-      .select("storage_path")
+      .select("id")
       .eq("id", id)
       .maybeSingle()
 
-    if (artworkError || !artwork?.storage_path) {
+    if (artworkError || !artwork?.id) {
       return NextResponse.json({ error: "Work not found." }, { status: 404 })
     }
+
+    const { data: artworkImages, error: artworkImagesError } = await supabase
+      .from("artwork_images")
+      .select("storage_path")
+      .eq("artwork_id", id)
+
+    if (artworkImagesError) {
+      return NextResponse.json(
+        { error: artworkImagesError.message || "Unable to load work images." },
+        { status: 500 },
+      )
+    }
+
+    const storagePaths =
+      artworkImages
+        ?.map((image) => image.storage_path)
+        .filter((path): path is string => Boolean(path)) ?? []
 
     const { error: deleteError } = await supabase
       .from("artworks")
@@ -196,7 +244,7 @@ export async function DELETE(_: Request, { params }: RouteContext) {
     await removeStoragePathsSafely({
       supabase,
       bucketName,
-      storagePaths: [artwork.storage_path],
+      storagePaths,
       logContext: "Work delete storage cleanup",
     })
 

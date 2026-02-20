@@ -41,32 +41,54 @@ export const useWorksPanelData = () => {
   const rangeEnd = worksYearRangeEnd
 
   const loadPreviewItems = useCallback(async () => {
-    const { data, error } = await supabase
+    const { data: artworks, error: artworksError } = await supabase
       .from("artworks")
-      .select(
-        "id, storage_path, title, caption, year, display_order, created_at",
-      )
+      .select("id, title, year, display_order, created_at")
       .eq("category", "works")
       .order("display_order", { ascending: false })
       .order("created_at", { ascending: false })
 
-    if (error) {
-      console.error("Failed to load work previews", { error })
+    if (artworksError) {
+      console.error("Failed to load work previews", { error: artworksError })
       return false
     }
 
-    const nextItems = (data ?? [])
+    const artworkIds = (artworks ?? []).map((item) => item.id).filter(Boolean)
+    if (artworkIds.length === 0) {
+      setPreviewItems([])
+      return true
+    }
+
+    const { data: primaryImages, error: primaryImagesError } = await supabase
+      .from("artwork_images")
+      .select("artwork_id, storage_path, caption")
+      .in("artwork_id", artworkIds)
+      .eq("is_primary", true)
+
+    if (primaryImagesError) {
+      console.error("Failed to load primary work images", {
+        error: primaryImagesError,
+      })
+      return false
+    }
+
+    const primaryImageByArtworkId = new Map(
+      (primaryImages ?? []).map((image) => [image.artwork_id, image]),
+    )
+
+    const nextItems = (artworks ?? [])
       .map((item) => {
-        if (!item.storage_path) return null
+        const primaryImage = primaryImageByArtworkId.get(item.id)
+        if (!primaryImage?.storage_path) return null
         const { data: publicData } = supabase.storage
           .from(bucketName)
-          .getPublicUrl(item.storage_path)
+          .getPublicUrl(primaryImage.storage_path)
         if (!publicData?.publicUrl) return null
         return {
           id: item.id,
           imageUrl: publicData.publicUrl,
           title: item.title ?? "",
-          caption: item.caption ?? "",
+          caption: primaryImage.caption ?? "",
           year: item.year ?? null,
           displayOrder: item.display_order ?? 0,
           createdAt: item.created_at ?? new Date().toISOString(),

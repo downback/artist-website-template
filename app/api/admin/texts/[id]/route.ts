@@ -55,7 +55,6 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         title,
         year,
         body,
-        updated_at: new Date().toISOString(),
       })
       .eq("id", id)
       .select("id, created_at")
