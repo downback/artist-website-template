@@ -10,6 +10,7 @@ export default function ExhibitionsPanel() {
     isUploadOpen,
     setIsUploadOpen,
     isUploading,
+    isLoadingPreviewItems,
     errorMessage,
     setErrorMessage,
     previewItems,
@@ -47,6 +48,7 @@ export default function ExhibitionsPanel() {
         title="Solo exhibitions"
         category="solo-exhibitions"
         items={soloItems}
+        isLoading={isLoadingPreviewItems}
         dragOverIndex={dragOverIndex}
         dragCategory={dragCategory}
         onAdd={openAddModal}
@@ -63,6 +65,7 @@ export default function ExhibitionsPanel() {
         title="Group exhibitions"
         category="group-exhibitions"
         items={groupItems}
+        isLoading={isLoadingPreviewItems}
         dragOverIndex={dragOverIndex}
         dragCategory={dragCategory}
         onAdd={openAddModal}

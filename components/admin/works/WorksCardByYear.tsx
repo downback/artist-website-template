@@ -19,6 +19,7 @@ type WorkPreviewItem = {
 type WorksCardByYearProps = {
   yearLabel: string
   items: WorkPreviewItem[]
+  isLoading?: boolean
   onAdd: () => void
   onEdit: (item: WorkPreviewItem) => void
   onDelete: (item: WorkPreviewItem) => Promise<void>
@@ -28,6 +29,7 @@ type WorksCardByYearProps = {
 export default function WorksCardByYear({
   yearLabel,
   items,
+  isLoading = false,
   onAdd,
   onEdit,
   onDelete,
@@ -60,7 +62,9 @@ export default function WorksCardByYear({
         </Button>
       </CardHeader>
       <CardContent className="space-y-2 text-sm text-muted-foreground">
-        {orderedItems.length === 0 ? (
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground">Loading work previews...</p>
+        ) : orderedItems.length === 0 ? (
           <p className="text-xs text-muted-foreground">No work previews yet.</p>
         ) : (
           <div className="flex flex-col gap-2">

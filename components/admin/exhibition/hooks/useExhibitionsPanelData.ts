@@ -15,6 +15,7 @@ const bucketName = siteAssetsBucketName
 export const useExhibitionsPanelData = () => {
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [isLoadingPreviewItems, setIsLoadingPreviewItems] = useState(true)
   const [errorMessage, setErrorMessage] = useState("")
   const [previewItems, setPreviewItems] = useState<ExhibitionPreviewItem[]>([])
   const [editingItem, setEditingItem] = useState<ExhibitionPreviewItem | null>(
@@ -31,53 +32,58 @@ export const useExhibitionsPanelData = () => {
   const supabase = useMemo(() => supabaseBrowser(), [])
 
   const loadPreviewItems = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("exhibition_images")
-      .select(
-        "id, storage_path, caption, display_order, created_at, is_primary, exhibitions ( id, title, type, slug, display_order, description )",
-      )
+    setIsLoadingPreviewItems(true)
+    try {
+      const { data, error } = await supabase
+        .from("exhibition_images")
+        .select(
+          "id, storage_path, caption, display_order, created_at, is_primary, exhibitions ( id, title, type, slug, display_order, description )",
+        )
 
-    if (error) {
-      console.error("Failed to load exhibition previews", { error })
-      return false
+      if (error) {
+        console.error("Failed to load exhibition previews", { error })
+        return false
+      }
+
+      const nextItems = (data ?? [])
+        .filter((item) => item.is_primary)
+        .map((item) => {
+          if (!item.storage_path) return null
+          const exhibition = Array.isArray(item.exhibitions)
+            ? item.exhibitions[0]
+            : item.exhibitions
+          if (!exhibition) return null
+          const { data: publicData } = supabase.storage
+            .from(bucketName)
+            .getPublicUrl(item.storage_path)
+          if (!publicData?.publicUrl) return null
+          return {
+            id: item.id,
+            exhibitionId: exhibition.id,
+            imageUrl: publicData.publicUrl,
+            caption: item.caption ?? "",
+            category:
+              exhibition.type === "solo"
+                ? "solo-exhibitions"
+                : "group-exhibitions",
+            description: exhibition.description ?? "",
+            exhibitionTitle: exhibition.title ?? "",
+            exhibitionOrder: exhibition.display_order ?? 0,
+            imageOrder: item.display_order ?? 0,
+            createdAt: item.created_at ?? new Date().toISOString(),
+          }
+        })
+        .filter((item): item is ExhibitionPreviewItem => Boolean(item))
+        .sort(
+          (a, b) =>
+            a.exhibitionOrder - b.exhibitionOrder || a.imageOrder - b.imageOrder,
+        )
+
+      setPreviewItems(nextItems)
+      return true
+    } finally {
+      setIsLoadingPreviewItems(false)
     }
-
-    const nextItems = (data ?? [])
-      .filter((item) => item.is_primary)
-      .map((item) => {
-        if (!item.storage_path) return null
-        const exhibition = Array.isArray(item.exhibitions)
-          ? item.exhibitions[0]
-          : item.exhibitions
-        if (!exhibition) return null
-        const { data: publicData } = supabase.storage
-          .from(bucketName)
-          .getPublicUrl(item.storage_path)
-        if (!publicData?.publicUrl) return null
-        return {
-          id: item.id,
-          exhibitionId: exhibition.id,
-          imageUrl: publicData.publicUrl,
-          caption: item.caption ?? "",
-          category:
-            exhibition.type === "solo"
-              ? "solo-exhibitions"
-              : "group-exhibitions",
-          description: exhibition.description ?? "",
-          exhibitionTitle: exhibition.title ?? "",
-          exhibitionOrder: exhibition.display_order ?? 0,
-          imageOrder: item.display_order ?? 0,
-          createdAt: item.created_at ?? new Date().toISOString(),
-        }
-      })
-      .filter((item): item is ExhibitionPreviewItem => Boolean(item))
-      .sort(
-        (a, b) =>
-          a.exhibitionOrder - b.exhibitionOrder || a.imageOrder - b.imageOrder,
-      )
-
-    setPreviewItems(nextItems)
-    return true
   }, [supabase])
 
   useEffect(() => {
@@ -319,6 +325,7 @@ export const useExhibitionsPanelData = () => {
     isUploadOpen,
     setIsUploadOpen,
     isUploading,
+    isLoadingPreviewItems,
     errorMessage,
     setErrorMessage,
     previewItems,

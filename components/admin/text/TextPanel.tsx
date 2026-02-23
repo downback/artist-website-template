@@ -23,6 +23,7 @@ const buildPreviewText = (entry: TextEntry) => {
 export default function TextPanel() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [textEntries, setTextEntries] = useState<TextEntry[]>([])
+  const [isLoadingTextEntries, setIsLoadingTextEntries] = useState(true)
   const [editingEntry, setEditingEntry] = useState<TextEntry | null>(null)
   const [errorMessage, setErrorMessage] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -31,25 +32,30 @@ export default function TextPanel() {
   const supabase = useMemo(() => supabaseBrowser(), [])
 
   const loadTextEntries = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("texts")
-      .select("id, title, year, body, created_at")
-      .order("created_at", { ascending: false })
+    setIsLoadingTextEntries(true)
+    try {
+      const { data, error } = await supabase
+        .from("texts")
+        .select("id, title, year, body, created_at")
+        .order("created_at", { ascending: false })
 
-    if (error) {
-      console.error("Failed to load texts", { error })
-      return
+      if (error) {
+        console.error("Failed to load texts", { error })
+        return
+      }
+
+      const nextEntries = (data ?? []).map((entry) => ({
+        id: entry.id,
+        title: entry.title ?? "",
+        year: entry.year ? String(entry.year) : "",
+        body: entry.body ?? "",
+        createdAt: entry.created_at ?? new Date().toISOString(),
+      }))
+
+      setTextEntries(nextEntries)
+    } finally {
+      setIsLoadingTextEntries(false)
     }
-
-    const nextEntries = (data ?? []).map((entry) => ({
-      id: entry.id,
-      title: entry.title ?? "",
-      year: entry.year ? String(entry.year) : "",
-      body: entry.body ?? "",
-      createdAt: entry.created_at ?? new Date().toISOString(),
-    }))
-
-    setTextEntries(nextEntries)
   }, [supabase])
 
   useEffect(() => {
@@ -189,8 +195,10 @@ export default function TextPanel() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4 text-sm text-muted-foreground">
-          {textEntries.length === 0 ? (
-            <p>No text entries yet.</p>
+          {isLoadingTextEntries ? (
+            <p>Loading text...</p>
+          ) : textEntries.length === 0 ? (
+            <p>No text yet.</p>
           ) : (
             <div className="grid gap-4">
               {textEntries.map((entry) => (

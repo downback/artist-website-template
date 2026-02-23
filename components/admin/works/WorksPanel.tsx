@@ -11,6 +11,7 @@ export default function WorksPanel() {
     isUploadOpen,
     setIsUploadOpen,
     isUploading,
+    isLoadingPreviewItems,
     errorMessage,
     yearOptions,
     groupedByYear,
@@ -31,7 +32,9 @@ export default function WorksPanel() {
 
   return (
     <div className="space-y-4">
-      {yearOptions.length === 0 ? (
+      {isLoadingPreviewItems ? (
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      ) : yearOptions.length === 0 ? (
         <p className="text-sm text-muted-foreground">No works yet.</p>
       ) : (
         <div className="space-y-4">
@@ -40,6 +43,7 @@ export default function WorksPanel() {
               key={year}
               yearLabel={year}
               items={items}
+              isLoading={isLoadingPreviewItems}
               onAdd={() => handleAdd(year)}
               onEdit={handleEdit}
               onDelete={(item) => handleDelete(item)}

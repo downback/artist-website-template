@@ -24,6 +24,7 @@ export type WorkPreviewItem = {
 export const useWorksPanelData = () => {
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [isLoadingPreviewItems, setIsLoadingPreviewItems] = useState(true)
   const [errorMessage, setErrorMessage] = useState("")
   const [previewItems, setPreviewItems] = useState<WorkPreviewItem[]>([])
   const [editingItem, setEditingItem] = useState<WorkPreviewItem | null>(null)
@@ -41,63 +42,68 @@ export const useWorksPanelData = () => {
   const rangeEnd = worksYearRangeEnd
 
   const loadPreviewItems = useCallback(async () => {
-    const { data: artworks, error: artworksError } = await supabase
-      .from("artworks")
-      .select("id, title, year, display_order, created_at")
-      .eq("category", "works")
-      .order("display_order", { ascending: false })
-      .order("created_at", { ascending: false })
+    setIsLoadingPreviewItems(true)
+    try {
+      const { data: artworks, error: artworksError } = await supabase
+        .from("artworks")
+        .select("id, title, year, display_order, created_at")
+        .eq("category", "works")
+        .order("display_order", { ascending: false })
+        .order("created_at", { ascending: false })
 
-    if (artworksError) {
-      console.error("Failed to load work previews", { error: artworksError })
-      return false
-    }
+      if (artworksError) {
+        console.error("Failed to load work previews", { error: artworksError })
+        return false
+      }
 
-    const artworkIds = (artworks ?? []).map((item) => item.id).filter(Boolean)
-    if (artworkIds.length === 0) {
-      setPreviewItems([])
+      const artworkIds = (artworks ?? []).map((item) => item.id).filter(Boolean)
+      if (artworkIds.length === 0) {
+        setPreviewItems([])
+        return true
+      }
+
+      const { data: primaryImages, error: primaryImagesError } = await supabase
+        .from("artwork_images")
+        .select("artwork_id, storage_path, caption")
+        .in("artwork_id", artworkIds)
+        .eq("is_primary", true)
+
+      if (primaryImagesError) {
+        console.error("Failed to load primary work images", {
+          error: primaryImagesError,
+        })
+        return false
+      }
+
+      const primaryImageByArtworkId = new Map(
+        (primaryImages ?? []).map((image) => [image.artwork_id, image]),
+      )
+
+      const nextItems = (artworks ?? [])
+        .map((item) => {
+          const primaryImage = primaryImageByArtworkId.get(item.id)
+          if (!primaryImage?.storage_path) return null
+          const { data: publicData } = supabase.storage
+            .from(bucketName)
+            .getPublicUrl(primaryImage.storage_path)
+          if (!publicData?.publicUrl) return null
+          return {
+            id: item.id,
+            imageUrl: publicData.publicUrl,
+            title: item.title ?? "",
+            caption: primaryImage.caption ?? "",
+            year: item.year ?? null,
+            displayOrder: item.display_order ?? 0,
+            createdAt: item.created_at ?? new Date().toISOString(),
+          }
+        })
+        .filter((item): item is WorkPreviewItem => Boolean(item))
+
+      setPreviewItems(nextItems)
       return true
+    } finally {
+      setIsLoadingPreviewItems(false)
     }
-
-    const { data: primaryImages, error: primaryImagesError } = await supabase
-      .from("artwork_images")
-      .select("artwork_id, storage_path, caption")
-      .in("artwork_id", artworkIds)
-      .eq("is_primary", true)
-
-    if (primaryImagesError) {
-      console.error("Failed to load primary work images", {
-        error: primaryImagesError,
-      })
-      return false
-    }
-
-    const primaryImageByArtworkId = new Map(
-      (primaryImages ?? []).map((image) => [image.artwork_id, image]),
-    )
-
-    const nextItems = (artworks ?? [])
-      .map((item) => {
-        const primaryImage = primaryImageByArtworkId.get(item.id)
-        if (!primaryImage?.storage_path) return null
-        const { data: publicData } = supabase.storage
-          .from(bucketName)
-          .getPublicUrl(primaryImage.storage_path)
-        if (!publicData?.publicUrl) return null
-        return {
-          id: item.id,
-          imageUrl: publicData.publicUrl,
-          title: item.title ?? "",
-          caption: primaryImage.caption ?? "",
-          year: item.year ?? null,
-          displayOrder: item.display_order ?? 0,
-          createdAt: item.created_at ?? new Date().toISOString(),
-        }
-      })
-      .filter((item): item is WorkPreviewItem => Boolean(item))
-
-    setPreviewItems(nextItems)
-    return true
   }, [bucketName, supabase])
 
   useEffect(() => {
@@ -416,6 +422,7 @@ export const useWorksPanelData = () => {
     isUploadOpen,
     setIsUploadOpen,
     isUploading,
+    isLoadingPreviewItems,
     errorMessage,
     yearOptions,
     groupedByYear,

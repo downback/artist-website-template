@@ -12,6 +12,7 @@ type ExhibitionCardByCategoryProps = {
   title: string
   category: ExhibitionCategory
   items: ExhibitionPreviewItem[]
+  isLoading?: boolean
   dragOverIndex: number | null
   dragCategory: ExhibitionCategory | null
   onAdd: (category: ExhibitionCategory) => void
@@ -31,6 +32,7 @@ export default function ExhibitionCardByCategory({
   title,
   category,
   items,
+  isLoading = false,
   dragOverIndex,
   dragCategory,
   onAdd,
@@ -55,10 +57,10 @@ export default function ExhibitionCardByCategory({
         </Button>
       </CardHeader>
       <CardContent className="space-y-2 text-sm text-muted-foreground">
-        {items.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            No exhibition previews yet.
-          </p>
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground">Loading exhibition...</p>
+        ) : items.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No exhibition yet.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {items.map((item, index) => (
