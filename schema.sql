@@ -3,14 +3,15 @@
 -- Artist Portfolio Website
 -- Supabase / PostgreSQL
 --
--- Migration-style schema
--- Safe to run on a new Supabase project
+-- INITIAL DEPLOYMENT VERSION
+-- Safe for fresh Supabase project
 --
 -- Sections:
 --   1. Extensions
---   2. Tables + RLS + Policies
---   3. Triggers  (auto-update updated_at)
---   4. Indexes   (query performance)
+--   2. Tables
+--   3. RLS + Policies
+--   4. Triggers
+--   5. Indexes
 -- ============================================================
 
 
@@ -18,70 +19,58 @@
 -- ============================================================
 -- 1. Extensions
 -- ============================================================
+
 create extension if not exists pgcrypto;
 
 
 
 -- ============================================================
--- 2. Tables + RLS + Policies
+-- 2. Tables
 -- ============================================================
+
 
 -- ------------------------------------------------------------
 -- Admin Singleton
--- Anchors the single admin user for the system
 -- ------------------------------------------------------------
-create table if not exists public.app_admin (
+
+create table public.app_admin (
   singleton_id boolean primary key,
   admin_user_id uuid not null unique
     references auth.users(id) on delete restrict,
   constraint app_admin_singleton_true check (singleton_id = true)
 );
 
-alter table public.app_admin enable row level security;
-
-create policy "app_admin_select_authenticated"
-on public.app_admin
-for select
-using ((select auth.uid()) is not null);
-
-create policy "app_admin_update_admin_only"
-on public.app_admin
-for update
-using ((select auth.uid()) = admin_user_id)
-with check ((select auth.uid()) = admin_user_id);
-
 
 
 -- ------------------------------------------------------------
--- Artworks (Works Only)
+-- Artworks (Metadata Only)
 -- ------------------------------------------------------------
-create table if not exists public.artworks (
-  id           uuid        primary key default gen_random_uuid(),
-  storage_path text        not null unique,
-  category     text        not null check (category = 'works'),
-  year         int         check (year between 1900 and 2100),
-  title        text,
-  caption      text        not null,
-  display_order int        not null default 0 check (display_order >= 0),
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
+
+create table public.artworks (
+  id uuid primary key default gen_random_uuid(),
+  category text not null,
+  year int,
+  title text,
+  display_order int not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
-alter table public.artworks enable row level security;
 
-create policy "artworks_public_read"
-on public.artworks
-for select
-using (true);
 
-create policy "artworks_admin_write"
-on public.artworks
-for all
-using (
-  (select auth.uid()) = (select admin_user_id from public.app_admin where singleton_id = true)
-)
-with check (
-  (select auth.uid()) = (select admin_user_id from public.app_admin where singleton_id = true)
+-- ------------------------------------------------------------
+-- Artwork Images
+-- ------------------------------------------------------------
+
+create table public.artwork_images (
+  id uuid primary key default gen_random_uuid(),
+  artwork_id uuid not null
+    references public.artworks(id) on delete cascade,
+  storage_path text not null unique,
+  caption text not null,
+  display_order int not null default 0,
+  is_primary boolean not null default false,
+  created_at timestamptz not null default now()
 );
 
 
@@ -89,122 +78,207 @@ with check (
 -- ------------------------------------------------------------
 -- Exhibitions (Metadata Only)
 -- ------------------------------------------------------------
-create table if not exists public.exhibitions (
-  id            uuid        primary key default gen_random_uuid(),
-  type          text        not null check (type in ('solo', 'group')),
-  title         text        not null,
-  slug          text        not null unique,
-  description   text,
-  display_order int         not null default 0 check (display_order >= 0),
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
-);
 
-alter table public.exhibitions enable row level security;
-
-create policy "exhibitions_public_read"
-on public.exhibitions
-for select
-using (true);
-
-create policy "exhibitions_admin_write"
-on public.exhibitions
-for all
-using (
-  (select auth.uid()) = (select admin_user_id from public.app_admin where singleton_id = true)
-)
-with check (
-  (select auth.uid()) = (select admin_user_id from public.app_admin where singleton_id = true)
+create table public.exhibitions (
+  id uuid primary key default gen_random_uuid(),
+  type text not null check (type in ('solo','group')),
+  title text not null,
+  slug text not null unique,
+  description text,
+  display_order int not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 
 
 -- ------------------------------------------------------------
 -- Exhibition Images
--- Cascade-delete keeps images in sync when an exhibition is removed
 -- ------------------------------------------------------------
-create table if not exists public.exhibition_images (
-  id            uuid        primary key default gen_random_uuid(),
-  exhibition_id uuid        not null
+
+create table public.exhibition_images (
+  id uuid primary key default gen_random_uuid(),
+  exhibition_id uuid not null
     references public.exhibitions(id) on delete cascade,
-  storage_path  text        not null unique,
-  caption       text        not null,
-  display_order int         not null default 0 check (display_order >= 0),
-  is_primary    boolean     not null default false,
-  created_at    timestamptz not null default now()
+  storage_path text not null unique,
+  caption text not null,
+  display_order int not null default 0,
+  is_primary boolean not null default false,
+  created_at timestamptz not null default now()
 );
 
-alter table public.exhibition_images enable row level security;
 
-create policy "exhibition_images_public_read"
-on public.exhibition_images
+
+-- ------------------------------------------------------------
+-- Biography Tables
+-- ------------------------------------------------------------
+
+create table public.bio_solo_exhibitions (
+  id uuid primary key default gen_random_uuid(),
+  description text,
+  description_kr text,
+  display_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table public.bio_group_exhibitions (
+  id uuid primary key default gen_random_uuid(),
+  description text,
+  description_kr text,
+  display_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table public.bio_education (
+  id uuid primary key default gen_random_uuid(),
+  description text,
+  description_kr text,
+  display_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table public.bio_residency (
+  id uuid primary key default gen_random_uuid(),
+  description text,
+  description_kr text,
+  display_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table public.bio_awards (
+  id uuid primary key default gen_random_uuid(),
+  description text,
+  description_kr text,
+  display_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table public.bio_collections (
+  id uuid primary key default gen_random_uuid(),
+  description text,
+  description_kr text,
+  display_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+
+
+-- ------------------------------------------------------------
+-- Text Pages
+-- ------------------------------------------------------------
+
+create table public.texts (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  year int not null,
+  body text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+
+
+-- ------------------------------------------------------------
+-- Activity Log
+-- ------------------------------------------------------------
+
+create table public.activity_log (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid not null
+    references auth.users(id) on delete restrict,
+  action_type text not null,
+  entity_type text not null,
+  entity_id uuid not null,
+  metadata jsonb,
+  created_at timestamptz not null default now()
+);
+
+
+
+-- ============================================================
+-- 3. RLS + POLICIES
+-- ============================================================
+
+
+-- Enable RLS on all tables
+
+alter table public.app_admin enable row level security;
+alter table public.artworks enable row level security;
+alter table public.artwork_images enable row level security;
+alter table public.exhibitions enable row level security;
+alter table public.exhibition_images enable row level security;
+alter table public.texts enable row level security;
+alter table public.bio_solo_exhibitions enable row level security;
+alter table public.bio_group_exhibitions enable row level security;
+alter table public.bio_education enable row level security;
+alter table public.bio_residency enable row level security;
+alter table public.bio_awards enable row level security;
+alter table public.bio_collections enable row level security;
+alter table public.activity_log enable row level security;
+
+
+
+-- Admin Singleton Policies
+
+create policy "app_admin_select_authenticated"
+on public.app_admin
 for select
-using (true);
+using (auth.uid() is not null);
+
+create policy "app_admin_update_admin_only"
+on public.app_admin
+for update
+using (auth.uid() = admin_user_id)
+with check (auth.uid() = admin_user_id);
+
+
+
+-- Public read policies
+
+create policy "artworks_public_read" on public.artworks for select using (true);
+create policy "artwork_images_public_read" on public.artwork_images for select using (true);
+create policy "exhibitions_public_read" on public.exhibitions for select using (true);
+create policy "exhibition_images_public_read" on public.exhibition_images for select using (true);
+create policy "texts_public_read" on public.texts for select using (true);
+
+
+
+-- Admin write policies (FOR ALL pattern)
+
+create policy "artworks_admin_write"
+on public.artworks
+for all
+using (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true))
+with check (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true));
+
+create policy "artwork_images_admin_write"
+on public.artwork_images
+for all
+using (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true))
+with check (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true));
+
+create policy "exhibitions_admin_write"
+on public.exhibitions
+for all
+using (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true))
+with check (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true));
 
 create policy "exhibition_images_admin_write"
 on public.exhibition_images
 for all
-using (
-  (select auth.uid()) = (select admin_user_id from public.app_admin where singleton_id = true)
-)
-with check (
-  (select auth.uid()) = (select admin_user_id from public.app_admin where singleton_id = true)
-);
+using (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true))
+with check (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true));
+
+create policy "texts_admin_write"
+on public.texts
+for all
+using (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true))
+with check (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true));
 
 
 
--- ------------------------------------------------------------
--- Biography Tables (Structured CV)
--- ------------------------------------------------------------
-create table if not exists public.bio_solo_exhibitions (
-  id            uuid        primary key default gen_random_uuid(),
-  description   text,
-  description_kr text,
-  display_order int         not null default 0 check (display_order >= 0),
-  created_at    timestamptz not null default now()
-);
+-- Bio policies (loop)
 
-create table if not exists public.bio_group_exhibitions (
-  id            uuid        primary key default gen_random_uuid(),
-  description   text,
-  description_kr text,
-  display_order int         not null default 0 check (display_order >= 0),
-  created_at    timestamptz not null default now()
-);
-
-create table if not exists public.bio_education (
-  id            uuid        primary key default gen_random_uuid(),
-  description   text,
-  description_kr text,
-  display_order int         not null default 0 check (display_order >= 0),
-  created_at    timestamptz not null default now()
-);
-
-create table if not exists public.bio_residency (
-  id            uuid        primary key default gen_random_uuid(),
-  description   text,
-  description_kr text,
-  display_order int         not null default 0 check (display_order >= 0),
-  created_at    timestamptz not null default now()
-);
-
-create table if not exists public.bio_awards (
-  id            uuid        primary key default gen_random_uuid(),
-  description   text,
-  description_kr text,
-  display_order int         not null default 0 check (display_order >= 0),
-  created_at    timestamptz not null default now()
-);
-
-create table if not exists public.bio_collections (
-  id            uuid        primary key default gen_random_uuid(),
-  description   text,
-  description_kr text,
-  display_order int         not null default 0 check (display_order >= 0),
-  created_at    timestamptz not null default now()
-);
-
--- RLS + Policies for all bio tables
 do $$
 declare
   t text;
@@ -218,164 +292,117 @@ begin
     'bio_collections'
   ]
   loop
-    execute format('alter table public.%I enable row level security', t);
+    execute format(
+      'create policy "%s_public_read" on public.%I for select using (true)',
+      t, t
+    );
 
-    execute format($sql$
-      create policy "%s_public_read"
-      on public.%I
-      for select
-      using (true)
-    $sql$, t, t);
-
-    execute format($sql$
-      create policy "%s_admin_write"
-      on public.%I
-      for all
-      using (
-        (select auth.uid()) = (select admin_user_id from public.app_admin where singleton_id = true)
-      )
-      with check (
-        (select auth.uid()) = (select admin_user_id from public.app_admin where singleton_id = true)
-      )
-    $sql$, t, t);
+    execute format(
+      'create policy "%s_admin_write" on public.%I for all
+       using (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true))
+       with check (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true))',
+      t, t
+    );
   end loop;
 end $$;
 
 
 
--- ------------------------------------------------------------
--- Text Pages
--- ------------------------------------------------------------
-create table if not exists public.texts (
-  id         uuid        primary key default gen_random_uuid(),
-  title      text        not null,
-  year       int         not null check (year between 1900 and 2100),
-  body       text        not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-alter table public.texts enable row level security;
-
-create policy "texts_public_read"
-on public.texts
-for select
-using (true);
-
-create policy "texts_admin_write"
-on public.texts
-for all
-using (
-  (select auth.uid()) = (select admin_user_id from public.app_admin where singleton_id = true)
-)
-with check (
-  (select auth.uid()) = (select admin_user_id from public.app_admin where singleton_id = true)
-);
-
-
-
--- ------------------------------------------------------------
--- Activity Log (Append-only)
--- ------------------------------------------------------------
-create table if not exists public.activity_log (
-  id          uuid        primary key default gen_random_uuid(),
-  admin_id    uuid        not null
-    references auth.users(id) on delete restrict,
-  action_type text        not null,
-  entity_type text        not null,
-  entity_id   uuid        not null,
-  metadata    jsonb,
-  created_at  timestamptz not null default now()
-);
-
-alter table public.activity_log enable row level security;
+-- Activity Log policies
 
 create policy "activity_log_admin_read"
 on public.activity_log
 for select
-using (
-  (select auth.uid()) = (select admin_user_id from public.app_admin where singleton_id = true)
-);
+using (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true));
 
 create policy "activity_log_admin_insert"
 on public.activity_log
 for insert
-with check (
-  (select auth.uid()) = (select admin_user_id from public.app_admin where singleton_id = true)
-);
+with check (auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true));
 
 
 
 -- ============================================================
--- 3. Triggers
--- Auto-update updated_at on every row modification.
--- Centralised in one function shared by all three tables.
+-- 4. Triggers
 -- ============================================================
+
 create or replace function public.set_updated_at()
 returns trigger
-language plpgsql as $$
+language plpgsql
+as $$
 begin
   new.updated_at = now();
   return new;
-end $$;
+end;
+$$;
 
 create trigger artworks_set_updated_at
-  before update on public.artworks
-  for each row execute function public.set_updated_at();
+before update on public.artworks
+for each row execute function public.set_updated_at();
 
 create trigger exhibitions_set_updated_at
-  before update on public.exhibitions
-  for each row execute function public.set_updated_at();
+before update on public.exhibitions
+for each row execute function public.set_updated_at();
 
 create trigger texts_set_updated_at
-  before update on public.texts
-  for each row execute function public.set_updated_at();
+before update on public.texts
+for each row execute function public.set_updated_at();
 
 
 
 -- ============================================================
--- 4. Indexes
--- Covers the most frequent query patterns:
---   - listing ordered rows per category / type
---   - joining exhibition images to their parent
---   - finding the primary image of an exhibition
---   - querying the activity log per admin
+-- 5. Indexes
 -- ============================================================
 
--- artworks: fetch all works ordered for display / reorder
-create index if not exists idx_artworks_category_order
+create index idx_artworks_category_order
   on public.artworks (category, display_order);
 
--- exhibitions: list by type ordered for display / reorder
-create index if not exists idx_exhibitions_type_order
+create index idx_artwork_images_artwork_order
+  on public.artwork_images (artwork_id, display_order);
+
+create index idx_artwork_images_primary
+  on public.artwork_images (artwork_id, is_primary);
+
+create unique index idx_artwork_images_one_primary
+  on public.artwork_images (artwork_id)
+  where is_primary = true;
+
+create index idx_exhibitions_type_order
   on public.exhibitions (type, display_order);
 
--- exhibition_images: fetch all images for one exhibition, ordered
-create index if not exists idx_exhibition_images_exhibition_order
+create index idx_exhibition_images_exhibition_order
   on public.exhibition_images (exhibition_id, display_order);
 
--- exhibition_images: find the primary image of an exhibition
-create index if not exists idx_exhibition_images_primary
+create index idx_exhibition_images_primary
   on public.exhibition_images (exhibition_id, is_primary);
 
--- texts: list texts ordered by year (most common sort direction)
-create index if not exists idx_texts_year
+create unique index idx_exhibition_images_one_primary
+  on public.exhibition_images (exhibition_id)
+  where is_primary = true;
+
+create index idx_texts_year
   on public.texts (year desc);
 
--- activity_log: query recent activity for an admin user
-create index if not exists idx_activity_log_admin_created
+create index idx_activity_log_admin_created
   on public.activity_log (admin_id, created_at desc);
 
+-- ============================================================
+-- After running above, run one of the below SQL commands to set your admin user ID in the app_admin singleton table.
+-- ============================================================
 
-insert into public.app_admin (singleton_id, admin_user_id)
-values (
-  true,
-  'TEST_ADMIN_USER_UUID'
-);
+-- -- Initial insert
+-- insert into public.app_admin (singleton_id, admin_user_id)
+-- values (true, 'YOUR_REAL_ADMIN_UUID');
 
+-- -- Update insert
 -- update public.app_admin
--- set admin_user_id = 'REAL_ADMIN_USER_UUID'
+-- set admin_user_id = 'REAL_ADMIN_UUID'
 -- where singleton_id = true;
+
+-- ============================================================
+-- Bucket Polices
+-- ============================================================
+-- -- site-assets / group-exhibitions / solo-exhibitions / works
 
 -- -- 1) Ensure bucket exists
 -- insert into storage.buckets (id, name, public)
@@ -416,143 +443,3 @@ values (
 --   bucket_id = 'site-assets'
 --   and auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true)
 -- );
-
--- ============================================================
--- MIGRATION: Split artworks into artworks + artwork_images
--- Safe refactor for existing database
--- ============================================================
-
-
--- ============================================================
--- 1. Drop trigger temporarily (depends on table structure)
--- ============================================================
-
-drop trigger if exists artworks_set_updated_at on public.artworks;
-
-
-
--- ============================================================
--- 2. Create artwork_images table
--- ============================================================
-
-create table if not exists public.artwork_images (
-  id uuid primary key default gen_random_uuid(),
-  artwork_id uuid not null
-    references public.artworks(id) on delete cascade,
-  storage_path text not null unique,
-  caption text not null,
-  display_order integer not null default 0 check (display_order >= 0),
-  is_primary boolean not null default false,
-  created_at timestamptz not null default now()
-);
-
-
-
--- ============================================================
--- 3. Migrate existing image data (if artworks already contain data)
---    This safely copies old storage_path + caption into new table
--- ============================================================
-
-insert into public.artwork_images (
-  artwork_id,
-  storage_path,
-  caption,
-  display_order,
-  is_primary
-)
-select
-  id,
-  storage_path,
-  caption,
-  0,
-  true
-from public.artworks
-where storage_path is not null;
-
-
-
--- ============================================================
--- 4. Remove image columns from artworks
--- ============================================================
-
-alter table public.artworks
-  drop column if exists storage_path,
-  drop column if exists caption;
-
-
-
--- ============================================================
--- 5. Enable RLS on new table
--- ============================================================
-
-alter table public.artwork_images enable row level security;
-
-
-
--- ============================================================
--- 6. Public read policy
--- ============================================================
-
-create policy "artwork_images_public_read"
-on public.artwork_images
-for select
-using (true);
-
-
-
--- ============================================================
--- 7. Admin write policy (same logic as existing tables)
--- ============================================================
-
-create policy "artwork_images_admin_write"
-on public.artwork_images
-for all
-using (
-  (select auth.uid()) = (
-    select admin_user_id
-    from public.app_admin
-    where singleton_id = true
-  )
-)
-with check (
-  (select auth.uid()) = (
-    select admin_user_id
-    from public.app_admin
-    where singleton_id = true
-  )
-);
-
-
-
--- ============================================================
--- 8. Re-create updated_at trigger on artworks
--- ============================================================
-
-create trigger artworks_set_updated_at
-  before update on public.artworks
-  for each row execute function public.set_updated_at();
-
-
-
--- ============================================================
--- 9. Indexes for artwork_images
--- ============================================================
-
--- Fetch all images for one artwork ordered
-create index if not exists idx_artwork_images_artwork_order
-  on public.artwork_images (artwork_id, display_order);
-
--- Find primary image fast
-create index if not exists idx_artwork_images_primary
-  on public.artwork_images (artwork_id, is_primary);
-
--- Enforce only ONE primary image per artwork
-create unique index if not exists idx_artwork_images_one_primary
-  on public.artwork_images (artwork_id)
-  where is_primary = true;
-
-
-
--- ============================================================
--- END OF MIGRATION
--- ============================================================
