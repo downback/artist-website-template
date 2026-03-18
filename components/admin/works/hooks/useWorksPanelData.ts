@@ -29,7 +29,7 @@ export const useWorksPanelData = () => {
   const [previewItems, setPreviewItems] = useState<WorkPreviewItem[]>([])
   const [editingItem, setEditingItem] = useState<WorkPreviewItem | null>(null)
   const [editingAdditionalImages, setEditingAdditionalImages] = useState<
-    { id: string; url: string }[]
+    { id: string; url: string; caption: string }[]
   >([])
   const [manualYears, setManualYears] = useState<string[]>([])
   const [selectedYear, setSelectedYear] = useState<string>("")
@@ -154,19 +154,24 @@ export const useWorksPanelData = () => {
         const previewUrl = values.imageFile
           ? URL.createObjectURL(values.imageFile)
           : ""
-      const formData = new FormData()
-      if (values.imageFile) {
-        formData.append("file", values.imageFile)
-      }
-      formData.append("year", resolvedYear)
-      formData.append("title", values.title)
-      formData.append("caption", values.caption)
-      values.additionalImages.forEach((file) => {
-        formData.append("additional_images", file)
-      })
-      values.removedAdditionalImageIds?.forEach((imageId) => {
-        formData.append("removedAdditionalImageIds", imageId)
-      })
+        const formData = new FormData()
+        if (values.imageFile) {
+          formData.append("file", values.imageFile)
+        }
+        formData.append("year", resolvedYear)
+        formData.append("title", values.title)
+        formData.append("caption", values.caption)
+        values.additionalImages.forEach((item) => {
+          formData.append("additional_images", item.file)
+          formData.append("additional_image_captions", item.caption)
+        })
+        values.existingAdditionalImages.forEach((item) => {
+          formData.append("existing_additional_image_ids", item.id)
+          formData.append("existing_additional_image_captions", item.caption)
+        })
+        values.removedAdditionalImageIds?.forEach((imageId) => {
+          formData.append("removedAdditionalImageIds", imageId)
+        })
 
         const response = await fetch(
           isEditMode
@@ -353,7 +358,7 @@ export const useWorksPanelData = () => {
     async (item: WorkPreviewItem) => {
       const { data, error } = await supabase
         .from("artwork_images")
-        .select("id, storage_path, display_order")
+        .select("id, storage_path, caption, display_order")
         .eq("artwork_id", item.id)
         .eq("is_primary", false)
         .order("display_order", { ascending: true })
@@ -374,9 +379,13 @@ export const useWorksPanelData = () => {
           return {
             id: image.id,
             url: publicData.publicUrl,
+            caption: image.caption ?? "",
           }
         })
-        .filter((image): image is { id: string; url: string } => Boolean(image))
+        .filter(
+          (image): image is { id: string; url: string; caption: string } =>
+            Boolean(image),
+        )
 
       setEditingItem(item)
       setEditingAdditionalImages(additionalImages)

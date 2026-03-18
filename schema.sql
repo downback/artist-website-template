@@ -60,6 +60,9 @@ create table public.artworks (
 
 -- ------------------------------------------------------------
 -- Artwork Images
+-- - Primary image caption is required by the app flow.
+-- - Additional image captions are optional in the UI and may be saved
+--   as an empty string, so `caption` remains NOT NULL.
 -- ------------------------------------------------------------
 
 create table public.artwork_images (
@@ -363,6 +366,9 @@ create index idx_artwork_images_artwork_order
 create index idx_artwork_images_primary
   on public.artwork_images (artwork_id, is_primary);
 
+create index idx_artwork_images_artwork_primary_order
+  on public.artwork_images (artwork_id, is_primary, display_order);
+
 create unique index idx_artwork_images_one_primary
   on public.artwork_images (artwork_id)
   where is_primary = true;
@@ -443,3 +449,27 @@ create index idx_activity_log_admin_created
 --   bucket_id = 'site-assets'
 --   and auth.uid() = (select admin_user_id from public.app_admin where singleton_id = true)
 -- );
+
+-- ============================================================
+-- Existing Project Sync Notes
+-- Run these only if your Supabase project was created before the
+-- current work-image additional-caption flow was added.
+-- ============================================================
+
+-- 1) Ensure `caption` exists and stays non-null on artwork images.
+--    Optional additional-image captions are stored as '' when empty.
+--
+-- alter table public.artwork_images
+-- add column if not exists caption text;
+--
+-- update public.artwork_images
+-- set caption = ''
+-- where caption is null;
+--
+-- alter table public.artwork_images
+-- alter column caption set not null;
+
+-- 2) Add the newer helper index if it does not already exist.
+--
+-- create index if not exists idx_artwork_images_artwork_primary_order
+--   on public.artwork_images (artwork_id, is_primary, display_order);

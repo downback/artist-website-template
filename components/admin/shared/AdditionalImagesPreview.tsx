@@ -2,21 +2,36 @@
 
 import Image from "next/image"
 import { X } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
 
 type AdditionalImagesPreviewProps = {
-  existingAdditionalImages: { id: string; url: string }[]
-  additionalPreviewUrls: string[]
+  existingAdditionalImages: { id: string; url: string; caption?: string }[]
+  additionalPreviewUrls?: string[]
+  additionalPreviewItems?: { url: string; caption?: string }[]
   onRemoveExistingAdditionalImage: (id: string) => void
   onRemoveAdditionalPreviewImage: (index: number) => void
+  onExistingCaptionChange?: (id: string, caption: string) => void
+  onAdditionalCaptionChange?: (index: number, caption: string) => void
+  captionPlaceholder?: string
 }
 
 export default function AdditionalImagesPreview({
   existingAdditionalImages,
   additionalPreviewUrls,
+  additionalPreviewItems,
   onRemoveExistingAdditionalImage,
   onRemoveAdditionalPreviewImage,
+  onExistingCaptionChange,
+  onAdditionalCaptionChange,
+  captionPlaceholder = "Optional caption",
 }: AdditionalImagesPreviewProps) {
-  if (existingAdditionalImages.length === 0 && additionalPreviewUrls.length === 0) {
+  const normalizedAdditionalPreviewItems: { url: string; caption?: string }[] =
+    additionalPreviewItems ?? additionalPreviewUrls?.map((url) => ({ url })) ?? []
+
+  if (
+    existingAdditionalImages.length === 0 &&
+    normalizedAdditionalPreviewItems.length === 0
+  ) {
     return null
   }
 
@@ -25,16 +40,30 @@ export default function AdditionalImagesPreview({
       {existingAdditionalImages.map((item, index) => (
         <div
           key={`${item.url}-existing-${index}`}
-          className="relative h-12 w-12 rounded-md border border-border"
+          className="relative w-full rounded-md border border-border p-2"
         >
-          <Image
-            src={item.url}
-            alt={`Additional image ${index + 1}`}
-            width={48}
-            height={48}
-            className="h-full w-full overflow-hidden rounded-md object-cover"
-            unoptimized
-          />
+          <div className="flex gap-2">
+            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border">
+              <Image
+                src={item.url}
+                alt={`Additional image ${index + 1}`}
+                width={48}
+                height={48}
+                className="h-full w-full overflow-hidden rounded-md object-cover"
+                unoptimized
+              />
+            </div>
+            {onExistingCaptionChange ? (
+              <Textarea
+                value={item.caption ?? ""}
+                onChange={(event) =>
+                  onExistingCaptionChange(item.id, event.target.value)
+                }
+                placeholder={captionPlaceholder}
+                className="min-h-[48px] text-xs"
+              />
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={() => onRemoveExistingAdditionalImage(item.id)}
@@ -45,19 +74,33 @@ export default function AdditionalImagesPreview({
           </button>
         </div>
       ))}
-      {additionalPreviewUrls.map((url, index) => (
+      {normalizedAdditionalPreviewItems.map((item, index) => (
         <div
-          key={`${url}-${index}`}
-          className="relative h-12 w-12 rounded-md border border-border"
+          key={`${item.url}-${index}`}
+          className="relative w-full rounded-md border border-border p-2"
         >
-          <Image
-            src={url}
-            alt={`Additional preview ${index + 1}`}
-            width={48}
-            height={48}
-            className="h-full w-full rounded-md object-cover"
-            unoptimized
-          />
+          <div className="flex gap-2">
+            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border">
+              <Image
+                src={item.url}
+                alt={`Additional preview ${index + 1}`}
+                width={48}
+                height={48}
+                className="h-full w-full rounded-md object-cover"
+                unoptimized
+              />
+            </div>
+            {onAdditionalCaptionChange ? (
+              <Textarea
+                value={item.caption ?? ""}
+                onChange={(event) =>
+                  onAdditionalCaptionChange(index, event.target.value)
+                }
+                placeholder={captionPlaceholder}
+                className="min-h-[48px] text-xs"
+              />
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={() => onRemoveAdditionalPreviewImage(index)}

@@ -1,8 +1,12 @@
-- [ ] allow works to have additional images
-- [ ] allow work additional images to have caption text
+- [x] allow works to have additional images
+- [x] allow work additional images to have caption text
 
-- [ ] EXHIBITION - allow exhibition additional images to have caption text
-- [ ] EXHIBITION - ui refine
+- [ ] check if we can make this uploader as re usable component
+- [ ] (if no)EXHIBITION - allow exhibition additional images to have caption text
+
+- [ ] push main -> create branches feat/
+
+- [ ] EXHIBITION - public page ui refine
 
 - [ ] work years
 

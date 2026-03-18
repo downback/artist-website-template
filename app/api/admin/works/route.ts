@@ -33,6 +33,9 @@ export async function POST(request: Request) {
     const additionalFiles = formData
       .getAll("additional_images")
       .filter((value): value is File => value instanceof File)
+    const additionalImageCaptions = formData
+      .getAll("additional_image_captions")
+      .map((value) => value.toString())
     const yearRaw = formData.get("year")?.toString().trim()
     const title = formData.get("title")?.toString().trim()
     const caption = formData.get("caption")?.toString().trim()
@@ -60,6 +63,13 @@ export async function POST(request: Request) {
         {
           error: additionalValidationError || "Only image uploads are allowed.",
         },
+        { status: 400 },
+      )
+    }
+
+    if (additionalFiles.length !== additionalImageCaptions.length) {
+      return NextResponse.json(
+        { error: "Additional image captions are invalid." },
         { status: 400 },
       )
     }
@@ -184,8 +194,10 @@ export async function POST(request: Request) {
       supabase,
       bucketName,
       artworkId: artwork.id,
-      caption: normalizedCaption,
-      additionalFiles,
+      additionalImages: additionalFiles.map((additionalFile, index) => ({
+        file: additionalFile,
+        caption: additionalImageCaptions[index] ?? "",
+      })),
       startDisplayOrder: 1,
     })
 

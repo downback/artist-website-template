@@ -9,8 +9,7 @@ type InsertAdditionalArtworkImagesInput = {
   supabase: ServerSupabaseClient
   bucketName: string
   artworkId: string
-  caption: string
-  additionalFiles: File[]
+  additionalImages: { file: File; caption: string }[]
   startDisplayOrder: number
 }
 
@@ -22,19 +21,19 @@ export const insertAdditionalArtworkImages = async ({
   supabase,
   bucketName,
   artworkId,
-  caption,
-  additionalFiles,
+  additionalImages,
   startDisplayOrder,
 }: InsertAdditionalArtworkImagesInput): Promise<InsertAdditionalArtworkImagesResult> => {
-  if (additionalFiles.length === 0) {
+  if (additionalImages.length === 0) {
     return { errorMessage: null }
   }
 
-  const additionalUploadItems = additionalFiles.map((file, index) => ({
-    file,
+  const additionalUploadItems = additionalImages.map((item, index) => ({
+    file: item.file,
+    caption: item.caption.trim(),
     storagePath: buildStoragePathWithPrefix({
       prefix: "works",
-      file,
+      file: item.file,
     }),
     displayOrder: startDisplayOrder + index,
   }))
@@ -58,7 +57,7 @@ export const insertAdditionalArtworkImages = async ({
   const inserts = additionalUploadItems.map((item) => ({
     artwork_id: artworkId,
     storage_path: item.storagePath,
-    caption,
+    caption: item.caption,
     display_order: item.displayOrder,
     is_primary: false,
   }))
@@ -78,6 +77,67 @@ export const insertAdditionalArtworkImages = async ({
   }
 
   return { errorMessage: null }
+}
+
+type UpdateAdditionalArtworkCaptionsInput = {
+  supabase: ServerSupabaseClient
+  artworkId: string
+  captionsByImageId: { id: string; caption: string }[]
+}
+
+type UpdateAdditionalArtworkCaptionsResult =
+  | { errorMessage: null; status: 200 }
+  | { errorMessage: string; status: 400 | 500 }
+
+export const updateAdditionalArtworkCaptions = async ({
+  supabase,
+  artworkId,
+  captionsByImageId,
+}: UpdateAdditionalArtworkCaptionsInput): Promise<UpdateAdditionalArtworkCaptionsResult> => {
+  if (captionsByImageId.length === 0) {
+    return { errorMessage: null, status: 200 }
+  }
+
+  const { data: existingRows, error: existingRowsError } = await supabase
+    .from("artwork_images")
+    .select("id, is_primary")
+    .eq("artwork_id", artworkId)
+    .in(
+      "id",
+      captionsByImageId.map((item) => item.id),
+    )
+
+  if (existingRowsError) {
+    return {
+      errorMessage: existingRowsError.message || "Unable to update image captions.",
+      status: 500,
+    }
+  }
+
+  if ((existingRows ?? []).some((row) => row.is_primary)) {
+    return {
+      errorMessage: "Primary image cannot be updated in this operation.",
+      status: 400,
+    }
+  }
+
+  for (const item of captionsByImageId) {
+    const { error } = await supabase
+      .from("artwork_images")
+      .update({ caption: item.caption.trim() })
+      .eq("artwork_id", artworkId)
+      .eq("id", item.id)
+      .eq("is_primary", false)
+
+    if (error) {
+      return {
+        errorMessage: error.message || "Unable to update image captions.",
+        status: 500,
+      }
+    }
+  }
+
+  return { errorMessage: null, status: 200 }
 }
 
 type RemoveAdditionalArtworkImagesInput = {

@@ -33,7 +33,8 @@ export type WorkFormValues = {
   year: string
   title: string
   caption: string
-  additionalImages: File[]
+  additionalImages: { file: File; caption: string }[]
+  existingAdditionalImages: { id: string; url: string; caption: string }[]
   removedAdditionalImageIds?: string[]
 }
 
@@ -51,7 +52,7 @@ type WorkUploadModalProps = {
     year?: string
     title?: string
     caption?: string
-    additionalImages?: { id: string; url: string }[]
+    additionalImages?: { id: string; url: string; caption?: string }[]
   }
   isEditMode?: boolean
   confirmLabel?: string
@@ -84,9 +85,11 @@ export default function WorkUploadModal({
   const [year, setYear] = useState(initialValues?.year ?? "")
   const [titleValue, setTitleValue] = useState(initialValues?.title ?? "")
   const [caption, setCaption] = useState(initialValues?.caption ?? "")
-  const [additionalImages, setAdditionalImages] = useState<File[]>([])
+  const [additionalImages, setAdditionalImages] = useState<
+    { file: File; caption: string }[]
+  >([])
   const [existingAdditionalImages, setExistingAdditionalImages] = useState<
-    { id: string; url: string }[]
+    { id: string; url: string; caption: string }[]
   >([])
   const [removedAdditionalImageIds, setRemovedAdditionalImageIds] = useState<
     string[]
@@ -119,7 +122,13 @@ export default function WorkUploadModal({
     setCaption(initialValues?.caption ?? "")
     setInitialImageUrl(initialValues?.imageUrl ?? "")
     setAdditionalImages([])
-    setExistingAdditionalImages(initialValues?.additionalImages ?? [])
+    setExistingAdditionalImages(
+      (initialValues?.additionalImages ?? []).map((item) => ({
+        id: item.id,
+        url: item.url,
+        caption: item.caption ?? "",
+      })),
+    )
     setRemovedAdditionalImageIds([])
   }, [clearPreviews, initialValues])
 
@@ -208,10 +217,24 @@ export default function WorkUploadModal({
     removeAdditionalPreviewAt(indexToRemove)
   }
 
+  const handleAdditionalCaptionChange = (indexToUpdate: number, value: string) => {
+    setAdditionalImages((prev) =>
+      prev.map((item, index) =>
+        index === indexToUpdate ? { ...item, caption: value } : item,
+      ),
+    )
+  }
+
   const handleRemoveExistingAdditionalImage = (id: string) => {
     setExistingAdditionalImages((prev) => prev.filter((item) => item.id !== id))
     setRemovedAdditionalImageIds((prev) =>
       prev.includes(id) ? prev : [...prev, id],
+    )
+  }
+
+  const handleExistingCaptionChange = (id: string, value: string) => {
+    setExistingAdditionalImages((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, caption: value } : item)),
     )
   }
 
@@ -357,8 +380,8 @@ export default function WorkUploadModal({
 
                   const existingKeys = new Set(
                     additionalImages.map(
-                      (file) =>
-                        `${file.name}-${file.size}-${file.lastModified}`,
+                      (item) =>
+                        `${item.file.name}-${item.file.size}-${item.file.lastModified}`,
                     ),
                   )
                   const newFiles = files.filter((file) => {
@@ -373,18 +396,27 @@ export default function WorkUploadModal({
                     return
                   }
 
-                  setAdditionalImages((prev) => [...prev, ...newFiles])
+                  setAdditionalImages((prev) => [
+                    ...prev,
+                    ...newFiles.map((file) => ({ file, caption: "" })),
+                  ])
                   appendAdditionalPreviews(newFiles)
                   event.target.value = ""
                 }}
               />
               <AdditionalImagesPreview
                 existingAdditionalImages={existingAdditionalImages}
-                additionalPreviewUrls={additionalPreviewUrls}
+                additionalPreviewItems={additionalPreviewUrls.map((url, index) => ({
+                  url,
+                  caption: additionalImages[index]?.caption ?? "",
+                }))}
                 onRemoveExistingAdditionalImage={
                   handleRemoveExistingAdditionalImage
                 }
                 onRemoveAdditionalPreviewImage={handleRemoveAdditionalImage}
+                onExistingCaptionChange={handleExistingCaptionChange}
+                onAdditionalCaptionChange={handleAdditionalCaptionChange}
+                captionPlaceholder="Optional caption for this image"
               />
             </div>
           </div>
@@ -410,6 +442,7 @@ export default function WorkUploadModal({
                   title: titleValue,
                   caption,
                   additionalImages,
+                  existingAdditionalImages,
                   removedAdditionalImageIds,
                 })
               }
