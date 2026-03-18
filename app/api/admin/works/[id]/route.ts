@@ -5,6 +5,10 @@ import {
   type WorkMetadataValidationData,
 } from "@/lib/requestValidation"
 import { buildStoragePathWithPrefix } from "@/lib/storage"
+import {
+  insertAdditionalArtworkImages,
+  removeAdditionalArtworkImages,
+} from "@/lib/server/artworkMutation"
 import { insertActivityLog, requireAdminUser } from "@/lib/server/adminRoute"
 import {
   removeStoragePathsSafely,
@@ -35,6 +39,13 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     const formData = await request.formData()
     const file = formData.get("file")
+    const additionalFiles = formData
+      .getAll("additional_images")
+      .filter((value): value is File => value instanceof File)
+    const removedAdditionalImageIds = formData
+      .getAll("removedAdditionalImageIds")
+      .map((value) => value.toString().trim())
+      .filter((value) => value.length > 0)
     const yearRaw = formData.get("year")?.toString().trim()
     const title = formData.get("title")?.toString().trim()
     const caption = formData.get("caption")?.toString().trim()
@@ -63,6 +74,28 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       title: normalizedTitle,
       caption: normalizedCaption,
     } = validatedData
+
+    const invalidAdditionalImage = additionalFiles.find(
+      (additional) => validateImageUploadFile(additional) !== null,
+    )
+    if (invalidAdditionalImage) {
+      const additionalValidationError = validateImageUploadFile(
+        invalidAdditionalImage,
+      )
+      return NextResponse.json(
+        {
+          error: additionalValidationError || "Only image uploads are allowed.",
+        },
+        { status: 400 },
+      )
+    }
+
+    if (removedAdditionalImageIds.some((imageId) => !isUuid(imageId))) {
+      return NextResponse.json(
+        { error: "Invalid additional image id." },
+        { status: 400 },
+      )
+    }
 
     const { data: artwork, error: artworkError } = await supabase
       .from("artworks")
@@ -168,6 +201,55 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         storagePaths: [primaryImage.storage_path],
         logContext: "Work update old-file cleanup",
       })
+    }
+
+    if (additionalFiles.length > 0) {
+      const { data: latestImage, error: latestImageError } = await supabase
+        .from("artwork_images")
+        .select("display_order")
+        .eq("artwork_id", id)
+        .order("display_order", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (latestImageError) {
+        return NextResponse.json(
+          { error: latestImageError.message || "Unable to load work images." },
+          { status: 500 },
+        )
+      }
+
+      const baseDisplayOrder = (latestImage?.display_order ?? -1) + 1
+      const additionalImageInsertResult = await insertAdditionalArtworkImages({
+        supabase,
+        bucketName,
+        artworkId: id,
+        caption: normalizedCaption,
+        additionalFiles,
+        startDisplayOrder: baseDisplayOrder,
+      })
+
+      if (additionalImageInsertResult.errorMessage) {
+        return NextResponse.json(
+          { error: additionalImageInsertResult.errorMessage },
+          { status: 500 },
+        )
+      }
+    }
+
+    if (removedAdditionalImageIds.length > 0) {
+      const removeAdditionalResult = await removeAdditionalArtworkImages({
+        supabase,
+        bucketName,
+        artworkId: id,
+        removedAdditionalImageIds,
+      })
+      if (removeAdditionalResult.errorMessage) {
+        return NextResponse.json(
+          { error: removeAdditionalResult.errorMessage },
+          { status: removeAdditionalResult.status },
+        )
+      }
     }
 
     await insertActivityLog(supabase, {

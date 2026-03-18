@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { siteAssetsBucketName } from "@/lib/constants"
 import { buildStoragePathWithPrefix } from "@/lib/storage"
+import { insertAdditionalArtworkImages } from "@/lib/server/artworkMutation"
 import {
   validateWorkMetadata,
   type WorkMetadataValidationData,
@@ -29,6 +30,9 @@ export async function POST(request: Request) {
 
     const formData = await request.formData()
     const file = formData.get("file")
+    const additionalFiles = formData
+      .getAll("additional_images")
+      .filter((value): value is File => value instanceof File)
     const yearRaw = formData.get("year")?.toString().trim()
     const title = formData.get("title")?.toString().trim()
     const caption = formData.get("caption")?.toString().trim()
@@ -43,6 +47,21 @@ export async function POST(request: Request) {
     const fileValidationError = validateImageUploadFile(file)
     if (fileValidationError) {
       return NextResponse.json({ error: fileValidationError }, { status: 400 })
+    }
+
+    const invalidAdditionalImage = additionalFiles.find(
+      (additional) => validateImageUploadFile(additional) !== null,
+    )
+    if (invalidAdditionalImage) {
+      const additionalValidationError = validateImageUploadFile(
+        invalidAdditionalImage,
+      )
+      return NextResponse.json(
+        {
+          error: additionalValidationError || "Only image uploads are allowed.",
+        },
+        { status: 400 },
+      )
     }
 
     const metadataValidationResult = validateWorkMetadata({
@@ -159,6 +178,29 @@ export async function POST(request: Request) {
         tableHint: "artwork_images",
         fallbackMessage: "Unable to save work entry.",
       })
+    }
+
+    const additionalImageInsertResult = await insertAdditionalArtworkImages({
+      supabase,
+      bucketName,
+      artworkId: artwork.id,
+      caption: normalizedCaption,
+      additionalFiles,
+      startDisplayOrder: 1,
+    })
+
+    if (additionalImageInsertResult.errorMessage) {
+      await removeStoragePathsSafely({
+        supabase,
+        bucketName,
+        storagePaths: [storagePath],
+        logContext: "Work create additional image rollback",
+      })
+      await supabase.from("artworks").delete().eq("id", artwork.id)
+      return NextResponse.json(
+        { error: additionalImageInsertResult.errorMessage },
+        { status: 500 },
+      )
     }
 
     await insertActivityLog(supabase, {
