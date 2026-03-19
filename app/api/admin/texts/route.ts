@@ -39,12 +39,28 @@ export async function POST(request: Request) {
     const validatedData = textValidationResult.data as TextPayloadValidationData
     const { title, body, year } = validatedData
 
+    const { data: latestText, error: latestError } = await supabase
+      .from("texts")
+      .select("display_order")
+      .order("display_order", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (latestError) {
+      return createMappedSupabaseErrorResponse({
+        message: latestError.message,
+        tableHint: "texts",
+        fallbackMessage: "Unable to save text entry.",
+      })
+    }
+
     const { data: text, error: insertError } = await supabase
       .from("texts")
       .insert({
         title,
         year,
         body,
+        display_order: (latestText?.display_order ?? 0) + 1,
       })
       .select("id, created_at")
       .single()

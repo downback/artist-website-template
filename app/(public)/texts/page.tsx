@@ -6,8 +6,8 @@ export default async function Contact() {
   const supabase = await supabaseServer()
   const { data: rows, error } = await supabase
     .from("texts")
-    .select("id, year, title, body, created_at")
-    .order("year", { ascending: false })
+    .select("id, year, title, body, created_at, display_order")
+    .order("display_order", { ascending: false })
     .order("created_at", { ascending: false })
 
   if (error) {

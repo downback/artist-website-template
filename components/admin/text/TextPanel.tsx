@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Pencil, Trash2 } from "lucide-react"
+import { GripVertical, Pencil, Trash2 } from "lucide-react"
 import TextUploadModal, {
   type TextFormValues,
 } from "@/components/admin/text/TextUploadModal"
@@ -13,6 +13,7 @@ import { supabaseBrowser } from "@/lib/client"
 type TextEntry = TextFormValues & {
   id: string
   createdAt: string
+  displayOrder: number
 }
 
 const buildPreviewText = (entry: TextEntry) => {
@@ -29,6 +30,8 @@ export default function TextPanel() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [deleteDialogId, setDeleteDialogId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const supabase = useMemo(() => supabaseBrowser(), [])
 
   const loadTextEntries = useCallback(async () => {
@@ -36,7 +39,8 @@ export default function TextPanel() {
     try {
       const { data, error } = await supabase
         .from("texts")
-        .select("id, title, year, body, created_at")
+        .select("id, title, year, body, created_at, display_order")
+        .order("display_order", { ascending: false })
         .order("created_at", { ascending: false })
 
       if (error) {
@@ -50,6 +54,7 @@ export default function TextPanel() {
         year: entry.year ? String(entry.year) : "",
         body: entry.body ?? "",
         createdAt: entry.created_at ?? new Date().toISOString(),
+        displayOrder: entry.display_order ?? 0,
       }))
 
       setTextEntries(nextEntries)
@@ -117,6 +122,10 @@ export default function TextPanel() {
             ...values,
             id: payload.id,
             createdAt: payload.createdAt,
+            displayOrder:
+              textEntries.length === 0
+                ? 1
+                : Math.max(...textEntries.map((entry) => entry.displayOrder)) + 1,
           }
           setTextEntries((prev) => [nextEntry, ...prev])
         } else {
@@ -178,6 +187,38 @@ export default function TextPanel() {
     }
   }, [editingEntry])
 
+  const handleReorder = async (orderedEntries: TextEntry[]) => {
+    const nextOrderMap = new Map(
+      orderedEntries.map((entry, index) => [entry.id, orderedEntries.length - index]),
+    )
+
+    setTextEntries((prev) =>
+      prev.map((entry) =>
+        nextOrderMap.has(entry.id)
+          ? { ...entry, displayOrder: nextOrderMap.get(entry.id) ?? 0 }
+          : entry,
+      ),
+    )
+
+    try {
+      const response = await fetch("/api/admin/texts/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderedTextIds: orderedEntries.map((entry) => entry.id),
+        }),
+      })
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string }
+        throw new Error(payload.error || "Unable to reorder texts.")
+      }
+    } catch (error) {
+      console.error("Failed to persist text order", { error })
+      setErrorMessage("Unable to save the text order. Please try again.")
+      await loadTextEntries()
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -201,16 +242,47 @@ export default function TextPanel() {
             <p>No text yet.</p>
           ) : (
             <div className="grid gap-4">
-              {textEntries.map((entry) => (
+              {textEntries.map((entry, index) => (
                 <div key={entry.id} className="rounded-md border p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div
+                    className={`flex flex-wrap items-center justify-between gap-2 ${
+                      dragOverIndex === index ? "rounded-md bg-muted/40" : ""
+                    }`}
+                    draggable
+                    onDragStart={() => setDraggedIndex(index)}
+                    onDragOver={(event) => {
+                      event.preventDefault()
+                      setDragOverIndex(index)
+                    }}
+                    onDragLeave={() => setDragOverIndex(null)}
+                    onDrop={() => {
+                      if (draggedIndex === null || draggedIndex === index) {
+                        setDraggedIndex(null)
+                        setDragOverIndex(null)
+                        return
+                      }
+
+                      const nextEntries = [...textEntries]
+                      const [movedEntry] = nextEntries.splice(draggedIndex, 1)
+                      nextEntries.splice(index, 0, movedEntry)
+                      setTextEntries(nextEntries)
+                      void handleReorder(nextEntries)
+                      setDraggedIndex(null)
+                      setDragOverIndex(null)
+                    }}
+                  >
                     <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {entry.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {entry.year ? entry.year : "Year not set"}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {entry.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {entry.year ? entry.year : "Year not set"}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1 md:gap-2">
                       <Button
@@ -262,6 +334,11 @@ export default function TextPanel() {
               ))}
             </div>
           )}
+          {textEntries.length > 0 ? (
+            <p className="text-xs text-left text-muted-foreground">
+              Drag rows to reorder
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 

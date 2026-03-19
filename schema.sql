@@ -178,6 +178,7 @@ create table public.texts (
   title text not null,
   year int not null,
   body text not null,
+  display_order int not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -395,6 +396,9 @@ create unique index idx_exhibition_images_one_primary
 create index idx_texts_year
   on public.texts (year desc);
 
+create index idx_texts_display_order
+  on public.texts (display_order desc, created_at desc);
+
 create index idx_activity_log_admin_created
   on public.activity_log (admin_id, created_at desc);
 
@@ -497,3 +501,31 @@ create index idx_activity_log_admin_created
 --
 -- create index if not exists idx_exhibition_images_exhibition_primary_order
 --   on public.exhibition_images (exhibition_id, is_primary, display_order);
+
+-- 5) Ensure `display_order` exists on texts for admin drag-and-drop ordering.
+--
+-- alter table public.texts
+-- add column if not exists display_order int;
+--
+-- with ranked_texts as (
+--   select id, row_number() over (order by year desc, created_at desc) as next_order
+--   from public.texts
+-- )
+-- update public.texts
+-- set display_order = ranked_texts.next_order
+-- from ranked_texts
+-- where public.texts.id = ranked_texts.id
+--   and public.texts.display_order is null;
+--
+-- update public.texts
+-- set display_order = 0
+-- where display_order is null;
+--
+-- alter table public.texts
+-- alter column display_order set default 0;
+--
+-- alter table public.texts
+-- alter column display_order set not null;
+--
+-- create index if not exists idx_texts_display_order
+--   on public.texts (display_order desc, created_at desc);

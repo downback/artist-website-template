@@ -1,7 +1,8 @@
 - [x] allow works to have additional images
 - [x] allow work additional images to have caption text
 
-- [ ] EXHIBITION - allow exhibition additional images to have caption text
+- [x] EXHIBITION - allow exhibition additional images to have caption text
+- [ ] TEXT - drag and drop order
 
 - [ ] push main -> create branches feat/
 
