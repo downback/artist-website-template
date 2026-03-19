@@ -54,7 +54,8 @@ export default async function GroupExhibitionPage({
         return {
           id: row.id,
           src: publicData.publicUrl,
-          alt: row.caption ?? "Exhibition image",
+          alt: row.caption || "Exhibition image",
+          caption: row.caption ?? "",
           isPrimary: row.is_primary ?? false,
         }
       })
@@ -79,6 +80,7 @@ export default async function GroupExhibitionPage({
             id: image.id,
             src: image.src,
             alt: image.alt,
+            caption: image.caption,
           })),
         },
       ]

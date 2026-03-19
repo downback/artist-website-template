@@ -97,6 +97,9 @@ create table public.exhibitions (
 
 -- ------------------------------------------------------------
 -- Exhibition Images
+-- - Primary image caption is required by the app flow.
+-- - Additional image captions are optional in the UI and may be saved
+--   as an empty string, so `caption` remains NOT NULL.
 -- ------------------------------------------------------------
 
 create table public.exhibition_images (
@@ -382,6 +385,9 @@ create index idx_exhibition_images_exhibition_order
 create index idx_exhibition_images_primary
   on public.exhibition_images (exhibition_id, is_primary);
 
+create index idx_exhibition_images_exhibition_primary_order
+  on public.exhibition_images (exhibition_id, is_primary, display_order);
+
 create unique index idx_exhibition_images_one_primary
   on public.exhibition_images (exhibition_id)
   where is_primary = true;
@@ -473,3 +479,21 @@ create index idx_activity_log_admin_created
 --
 -- create index if not exists idx_artwork_images_artwork_primary_order
 --   on public.artwork_images (artwork_id, is_primary, display_order);
+
+-- 3) Ensure `caption` exists and stays non-null on exhibition images.
+--    Optional additional-image captions are stored as '' when empty.
+--
+-- alter table public.exhibition_images
+-- add column if not exists caption text;
+--
+-- update public.exhibition_images
+-- set caption = ''
+-- where caption is null;
+--
+-- alter table public.exhibition_images
+-- alter column caption set not null;
+
+-- 4) Add the newer helper index if it does not already exist.
+--
+-- create index if not exists idx_exhibition_images_exhibition_primary_order
+--   on public.exhibition_images (exhibition_id, is_primary, display_order);

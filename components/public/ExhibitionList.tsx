@@ -13,6 +13,7 @@ type Exhibition = {
     id: string
     src: string
     alt: string
+    caption?: string
   }[]
 }
 
@@ -46,7 +47,7 @@ export default function ExhibitionList({
 
           <div className="flex flex-col gap-6 mt-12 md:mt-24">
             {(item.detailImages ?? []).map((image) => (
-              <div key={image.id} className=" w-full">
+              <div key={image.id} className="w-full space-y-3">
                 <LightboxImage
                   src={image.src}
                   alt={image.alt}
@@ -56,6 +57,11 @@ export default function ExhibitionList({
                   className="block h-full w-full"
                   imageClassName="h-auto w-full object-cover md:h-auto md:w-full"
                 />
+                {image.caption ? (
+                  <div className="px-1 text-sm md:text-[13px] font-light whitespace-pre-wrap">
+                    {image.caption}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

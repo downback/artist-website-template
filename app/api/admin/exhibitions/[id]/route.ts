@@ -11,6 +11,7 @@ import {
   insertAdditionalExhibitionImages,
   removeAdditionalExhibitionImages,
   rollbackExhibitionUpdate,
+  updateAdditionalExhibitionCaptions,
 } from "@/lib/server/exhibitionMutation"
 import {
   removeStoragePathsSafely,
@@ -49,6 +50,16 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     const additionalFiles = formData
       .getAll("additional_images")
       .filter((value): value is File => value instanceof File)
+    const additionalImageCaptions = formData
+      .getAll("additional_image_captions")
+      .map((value) => value.toString())
+    const existingAdditionalImageIds = formData
+      .getAll("existing_additional_image_ids")
+      .map((value) => value.toString().trim())
+      .filter((value) => value.length > 0)
+    const existingAdditionalImageCaptions = formData
+      .getAll("existing_additional_image_captions")
+      .map((value) => value.toString())
     const removedAdditionalImageIds = formData
       .getAll("removedAdditionalImageIds")
       .map((value) => value.toString().trim())
@@ -90,7 +101,24 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       )
     }
 
-    if (removedAdditionalImageIds.some((imageId) => !isUuid(imageId))) {
+    if (additionalFiles.length !== additionalImageCaptions.length) {
+      return NextResponse.json(
+        { error: "Additional image captions are invalid." },
+        { status: 400 },
+      )
+    }
+
+    if (existingAdditionalImageIds.length !== existingAdditionalImageCaptions.length) {
+      return NextResponse.json(
+        { error: "Existing additional image captions are invalid." },
+        { status: 400 },
+      )
+    }
+
+    if (
+      removedAdditionalImageIds.some((imageId) => !isUuid(imageId)) ||
+      existingAdditionalImageIds.some((imageId) => !isUuid(imageId))
+    ) {
       return NextResponse.json(
         { error: "Invalid additional image id." },
         { status: 400 },
@@ -213,6 +241,29 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       })
     }
 
+    const filteredExistingAdditionalCaptions = existingAdditionalImageIds
+      .map((imageId, index) => ({
+        id: imageId,
+        caption: existingAdditionalImageCaptions[index] ?? "",
+      }))
+      .filter((item) => !removedAdditionalImageIds.includes(item.id))
+
+    if (filteredExistingAdditionalCaptions.length > 0) {
+      const updateAdditionalCaptionsResult =
+        await updateAdditionalExhibitionCaptions({
+          supabase,
+          exhibitionId: imageRow.exhibition_id,
+          captionsByImageId: filteredExistingAdditionalCaptions,
+        })
+      if (updateAdditionalCaptionsResult.errorMessage) {
+        await rollbackExhibitionUpdate(supabase, exhibition)
+        return NextResponse.json(
+          { error: updateAdditionalCaptionsResult.errorMessage },
+          { status: updateAdditionalCaptionsResult.status },
+        )
+      }
+    }
+
     if (additionalFiles.length > 0) {
       const { data: latestImage, error: latestImageError } = await supabase
         .from("exhibition_images")
@@ -236,10 +287,12 @@ export async function PATCH(request: Request, { params }: RouteContext) {
           supabase,
           bucketName,
           exhibitionId: imageRow.exhibition_id,
-          caption,
           category,
           slug,
-          additionalFiles,
+          additionalImages: additionalFiles.map((additionalFile, index) => ({
+            file: additionalFile,
+            caption: additionalImageCaptions[index] ?? "",
+          })),
           startDisplayOrder: baseDisplayOrder,
         })
       if (additionalImageInsertResult.errorMessage) {

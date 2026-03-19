@@ -40,10 +40,9 @@ type InsertAdditionalImagesInput = {
   supabase: ServerSupabaseClient
   bucketName: string
   exhibitionId: string
-  caption: string
   category: string
   slug: string
-  additionalFiles: File[]
+  additionalImages: { file: File; caption: string }[]
   startDisplayOrder: number
 }
 
@@ -55,21 +54,21 @@ export const insertAdditionalExhibitionImages = async ({
   supabase,
   bucketName,
   exhibitionId,
-  caption,
   category,
   slug,
-  additionalFiles,
+  additionalImages,
   startDisplayOrder,
 }: InsertAdditionalImagesInput): Promise<InsertAdditionalImagesResult> => {
-  if (additionalFiles.length === 0) {
+  if (additionalImages.length === 0) {
     return { errorMessage: null }
   }
 
-  const additionalUploadItems = additionalFiles.map((additional, index) => ({
-    file: additional,
+  const additionalUploadItems = additionalImages.map((additional, index) => ({
+    file: additional.file,
+    caption: additional.caption.trim(),
     storagePath: buildStoragePathWithPrefix({
       prefix: `${category}/${slug}`,
-      file: additional,
+      file: additional.file,
     }),
     displayOrder: startDisplayOrder + index,
   }))
@@ -93,7 +92,7 @@ export const insertAdditionalExhibitionImages = async ({
   const inserts = additionalUploadItems.map((item) => ({
     exhibition_id: exhibitionId,
     storage_path: item.storagePath,
-    caption,
+    caption: item.caption,
     display_order: item.displayOrder,
     is_primary: false,
   }))
@@ -113,6 +112,67 @@ export const insertAdditionalExhibitionImages = async ({
   }
 
   return { errorMessage: null }
+}
+
+type UpdateAdditionalExhibitionCaptionsInput = {
+  supabase: ServerSupabaseClient
+  exhibitionId: string
+  captionsByImageId: { id: string; caption: string }[]
+}
+
+type UpdateAdditionalExhibitionCaptionsResult =
+  | { errorMessage: null; status: 200 }
+  | { errorMessage: string; status: 400 | 500 }
+
+export const updateAdditionalExhibitionCaptions = async ({
+  supabase,
+  exhibitionId,
+  captionsByImageId,
+}: UpdateAdditionalExhibitionCaptionsInput): Promise<UpdateAdditionalExhibitionCaptionsResult> => {
+  if (captionsByImageId.length === 0) {
+    return { errorMessage: null, status: 200 }
+  }
+
+  const { data: existingRows, error: existingRowsError } = await supabase
+    .from("exhibition_images")
+    .select("id, is_primary")
+    .eq("exhibition_id", exhibitionId)
+    .in(
+      "id",
+      captionsByImageId.map((item) => item.id),
+    )
+
+  if (existingRowsError) {
+    return {
+      errorMessage: existingRowsError.message || "Unable to update image captions.",
+      status: 500,
+    }
+  }
+
+  if ((existingRows ?? []).some((row) => row.is_primary)) {
+    return {
+      errorMessage: "Primary image cannot be updated in this operation.",
+      status: 400,
+    }
+  }
+
+  for (const item of captionsByImageId) {
+    const { error } = await supabase
+      .from("exhibition_images")
+      .update({ caption: item.caption.trim() })
+      .eq("exhibition_id", exhibitionId)
+      .eq("id", item.id)
+      .eq("is_primary", false)
+
+    if (error) {
+      return {
+        errorMessage: error.message || "Unable to update image captions.",
+        status: 500,
+      }
+    }
+  }
+
+  return { errorMessage: null, status: 200 }
 }
 
 type RemoveAdditionalImagesInput = {

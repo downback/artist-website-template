@@ -32,6 +32,9 @@ export async function POST(request: Request) {
     const additionalFiles = formData
       .getAll("additional_images")
       .filter((value): value is File => value instanceof File)
+    const additionalImageCaptions = formData
+      .getAll("additional_image_captions")
+      .map((value) => value.toString())
 
     const isAllowedCategory = (value: string): value is ExhibitionCategory =>
       exhibitionCategories.includes(value as ExhibitionCategory)
@@ -70,6 +73,13 @@ export async function POST(request: Request) {
       )
     }
 
+    if (additionalFiles.length !== additionalImageCaptions.length) {
+      return NextResponse.json(
+        { error: "Additional image captions are invalid." },
+        { status: 400 },
+      )
+    }
+
     if (!exhibitionTitle) {
       return NextResponse.json(
         { error: "Exhibition title is required." },
@@ -101,7 +111,10 @@ export async function POST(request: Request) {
       caption,
       description,
       mainFile: file,
-      additionalFiles,
+      additionalImages: additionalFiles.map((additionalFile, index) => ({
+        file: additionalFile,
+        caption: additionalImageCaptions[index] ?? "",
+      })),
     })
 
     if (!createResult.ok) {

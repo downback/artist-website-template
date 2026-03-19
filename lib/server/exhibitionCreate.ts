@@ -19,7 +19,7 @@ type ExecuteExhibitionCreateFlowInput = {
   caption: string
   description?: string
   mainFile: File
-  additionalFiles: File[]
+  additionalImages: { file: File; caption: string }[]
 }
 
 type ExecuteExhibitionCreateFlowResult =
@@ -35,7 +35,7 @@ export const executeExhibitionCreateFlow = async ({
   caption,
   description,
   mainFile,
-  additionalFiles,
+  additionalImages,
 }: ExecuteExhibitionCreateFlowInput): Promise<ExecuteExhibitionCreateFlowResult> => {
   const exhibitionType = category === "solo-exhibitions" ? "solo" : "group"
 
@@ -218,12 +218,13 @@ export const executeExhibitionCreateFlow = async ({
     }
   }
 
-  if (additionalFiles.length > 0) {
-    const additionalUploadItems = additionalFiles.map((additional, index) => ({
-      file: additional,
+  if (additionalImages.length > 0) {
+    const additionalUploadItems = additionalImages.map((additional, index) => ({
+      file: additional.file,
+      caption: additional.caption.trim(),
       storagePath: buildStoragePathWithPrefix({
         prefix: `${category}/${slug}`,
-        file: additional,
+        file: additional.file,
       }),
       displayOrder: baseDisplayOrder + index + 1,
     }))
@@ -252,7 +253,7 @@ export const executeExhibitionCreateFlow = async ({
     const inserts = additionalUploadItems.map((item) => ({
       exhibition_id: exhibitionId,
       storage_path: item.storagePath,
-      caption,
+      caption: item.caption,
       display_order: item.displayOrder,
       is_primary: false,
     }))

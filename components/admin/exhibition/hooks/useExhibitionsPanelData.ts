@@ -22,7 +22,7 @@ export const useExhibitionsPanelData = () => {
     null,
   )
   const [editingAdditionalImages, setEditingAdditionalImages] = useState<
-    { id: string; url: string }[]
+    { id: string; url: string; caption: string }[]
   >([])
   const [resetSignal, setResetSignal] = useState(0)
   const [selectedCategory, setSelectedCategory] =
@@ -152,8 +152,13 @@ export const useExhibitionsPanelData = () => {
         formData.append("exhibition_title", values.exhibitionTitle)
         formData.append("caption", values.caption)
         formData.append("description", values.description)
-        values.additionalImages.forEach((file) => {
-          formData.append("additional_images", file)
+        values.additionalImages.forEach((item) => {
+          formData.append("additional_images", item.file)
+          formData.append("additional_image_captions", item.caption)
+        })
+        values.existingAdditionalImages.forEach((item) => {
+          formData.append("existing_additional_image_ids", item.id)
+          formData.append("existing_additional_image_captions", item.caption)
         })
         values.removedAdditionalImageIds?.forEach((imageId) => {
           formData.append("removedAdditionalImageIds", imageId)
@@ -283,7 +288,7 @@ export const useExhibitionsPanelData = () => {
 
       const { data, error } = await supabase
         .from("exhibition_images")
-        .select("id, storage_path, is_primary, display_order")
+        .select("id, storage_path, caption, is_primary, display_order")
         .eq("exhibition_id", item.exhibitionId)
         .order("display_order", { ascending: true })
 
@@ -303,6 +308,7 @@ export const useExhibitionsPanelData = () => {
           return {
             id: image.id,
             url: publicData?.publicUrl ?? "",
+            caption: image.caption ?? "",
           }
         })
         .filter((image) => image.url.length > 0)
